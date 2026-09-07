@@ -41,9 +41,21 @@ from . import fetch, ffmpeg, jsruntime, naming
 from .config import ROOT
 from .webpage import PAGE
 
-JOBS_DIR = ROOT / "work" / "jobs"
+WORK_DIR = ROOT / "work"
+JOBS_DIR = WORK_DIR / "jobs"
 INPUT_DIR = ROOT / "input"
 OUTPUT_DIR = ROOT / "output"
+# Spared when work/ is cleared, for the reason scripts/clear.ps1 spares it: it
+# maps each input to the output it produced, and losing it makes a re-run
+# render a duplicate under a "(2)" name instead of skipping.
+WORK_SPARE = {"index.json"}
+# What the Dọn buttons accept. "all" is the page's equivalent of choice 6 in
+# Clear.cmd, and exists because this page is the only interface some people
+# ever see: it shows input\ and output\ and nothing else, so work/ leftovers
+# were unreachable from here. A render that FAILS keeps its pieces (render.py
+# cleans up only on success) -- measured after one interrupted run, 1.04 GiB
+# stranded with no button anywhere on the page that could remove it.
+CLEAR_TARGETS = ("input", "output", "work", "all")
 VIDEO_EXT = (".mp4", ".mkv", ".ts", ".flv", ".mov", ".webm", ".avi")
 # What a browser will be told a preview is. Only the first two are formats a
 # browser actually plays; the rest are served honestly and will simply refuse
@@ -508,28 +520,88 @@ def _any_active():
     return None
 
 
-def clear_folder(where):
-    """Everything in input/ or output/ to the Recycle Bin. Returns (ok, text).
+def _clear_set(where):
+    """Exactly the files one Dọn target would recycle, as a list of paths.
 
-    Only those two. work/ is deliberately not on the list: clearing it would
-    take signal.npz caches and index.json with it, and Clear.cmd already does
-    that carefully, sparing the index so a re-run does not render a duplicate
-    under a "(2)" name.
+    The size shown in the confirmation is measured with this same function, so
+    the number the person agrees to cannot disagree with what actually goes.
+    That was not true before: the panel sized a folder with os.walk while the
+    clear only ever listed its top level, which reads the same for the flat
+    input/ and output/ but would have under-deleted the nested work/.
     """
-    folders = {"input": INPUT_DIR, "output": OUTPUT_DIR}
-    target = folders.get(where)
-    if target is None:
-        return False, "chỉ dọn được input hoặc output"
-    if not target.is_dir():
-        return False, "chưa có thư mục đó"
+    if where == "all":
+        return (_clear_set("input") + _clear_set("output")
+                + _clear_set("work"))
+    if where == "work":
+        if not WORK_DIR.is_dir():
+            return []
+        found = []
+        for root, _dirs, names in os.walk(WORK_DIR):
+            found += [os.path.join(root, n) for n in names
+                      if n not in WORK_SPARE]
+        return sorted(found)
+    folder = {"input": INPUT_DIR, "output": OUTPUT_DIR}.get(where)
+    if folder is None or not folder.is_dir():
+        return []
+    return sorted(str(p) for p in folder.iterdir() if p.is_file())
+
+
+def _clear_stats(where):
+    """{bytes, files} for what a Dọn target would remove."""
+    total = 0
+    files = _clear_set(where)
+    for path in files:
+        try:
+            total += os.path.getsize(path)
+        except OSError:
+            pass                            # vanished between listing and now
+    return {"bytes": total, "files": len(files)}
+
+
+def _prune_empty_dirs():
+    """Drop the folders left standing under work/ once their files are gone.
+
+    Bottom-up, so a directory is judged after its children have been removed.
+    work/ itself is never removed: the next job expects it to be there.
+    """
+    if not WORK_DIR.is_dir():
+        return
+    root_path = os.path.abspath(str(WORK_DIR))
+    for root, _dirs, _names in os.walk(str(WORK_DIR), topdown=False):
+        if os.path.abspath(root) == root_path:
+            continue
+        try:
+            if not os.listdir(root):
+                os.rmdir(root)
+        except OSError:
+            pass                            # in use, or already gone
+
+
+def clear_folder(where):
+    """Files from input/, output/ or work/ to the Recycle Bin. (ok, text).
+
+    work/ is on the list now, and so is "all". It used to be left off on the
+    grounds that Clear.cmd handles it -- but nobody who uses this page opens a
+    console, and the page names only input\\ and output\\, so work/ leftovers
+    were invisible AND unreachable. Clearing output while a failed render's
+    pieces sat in work/ therefore freed the finished videos and left the
+    gigabytes of scratch behind, with nothing on the page to say so.
+
+    index.json is still spared -- see WORK_SPARE.
+    """
+    if where not in CLEAR_TARGETS:
+        return False, "chỉ dọn được input, output, work hoặc tất cả"
     busy = _any_active()
     if busy:
         return False, "đang có việc chạy -- dừng nó trước khi dọn"
-    files = sorted(p for p in target.iterdir() if p.is_file())
+    files = _clear_set(where)
     if not files:
         return True, "không có gì để dọn"
-    size = sum(p.stat().st_size for p in files)
+    size = sum(os.path.getsize(p) for p in files if os.path.exists(p))
     gone, err = _recycle_many(files)
+    # Only work/ nests, so this is the only route that strands directories.
+    if where in ("work", "all"):
+        _prune_empty_dirs()
     text = f"đã chuyển {gone}/{len(files)} file ({size / 2**30:.2f} GiB) vào Thùng rác"
     if gone < len(files):
         return False, text + (f" -- {err}" if err else "")
@@ -782,11 +854,17 @@ def _state():
             # able to find the folder in Explorer without knowing where the
             # project lives.
             "paths": {"root": str(ROOT), "input": str(INPUT_DIR),
-                      "output": str(OUTPUT_DIR),
+                      "output": str(OUTPUT_DIR), "work": str(WORK_DIR),
                       "parts": os.path.join(str(ROOT), "work",
                                             "<tên video>", "parts") + os.sep},
             "folders": {"input": _folder_stats(INPUT_DIR),
-                        "output": _folder_stats(OUTPUT_DIR)},
+                        "output": _folder_stats(OUTPUT_DIR),
+                        "work": _folder_stats(WORK_DIR)},
+            # What each Dọn button would remove, measured by the function that
+            # removes it. Kept separate from "folders" above, which reports
+            # what a folder HOLDS: the two differ for work/, because
+            # index.json is never cleared.
+            "clear": {k: _clear_stats(k) for k in CLEAR_TARGETS},
             "inputs": _listing(INPUT_DIR), "outputs": _listing(OUTPUT_DIR),
             "jobs": jobs}
 

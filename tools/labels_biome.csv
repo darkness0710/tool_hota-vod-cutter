@@ -1,0 +1,36 @@
+# Hand-checked timestamps from the third reference VOD
+# ([06-09-2026] Chu nhat ko ch.et biome [sd9BBehBBTY].mp4, 4:49:26).
+# Format: seconds,keep|cut,description
+#
+# This file exists because of one specific failure, and every entry in it is a
+# pair: the same situation once with Tieulinh in the right/blue seat and once
+# with Tieulinh in the left/red seat. Nothing else in the net covers that.
+#
+# The other two VODs are seated one way for their whole length, so a detector
+# that reads the seat wrongly -- or never reads it at all and defaults -- still
+# scores full marks on them half the time. This stream switches seats between
+# games: 1, 2 and 4 are played from the RIGHT seat and 3, 5, 6, 7, 8, 9 from
+# the LEFT. NAME_R used to start 41 px right of where this HUD draws the plate,
+# so the right seat never matched at all, the first hour was filled in from a
+# later left-seated game, and every one of these six right-seated entries came
+# out inverted: Tieulinh's own turns cut, the opponent's kept.
+#
+# Each timestamp was read off the frame by eye, from a filmstrip of the two
+# clock lines a few seconds apart -- which line is counting down and what
+# colour it is -- never from what the detector said. Note the lines swap
+# colour between games: red is the LOWER line in games 1-4 and the UPPER one
+# in games 7 and 9, which is why nothing may key off line position.
+#
+# --- Tieulinh in the RIGHT seat, so Tieulinh is BLUE ---
+332,cut,g1 red 1:05->0:53 blue frozen: opponent turn
+860,keep,g1 blue 4:05->3:44 red frozen: Tieulinh turn
+1728,cut,g2 red 1:32->1:28 blue frozen: opponent turn
+2412,keep,g2 blue 4:25->4:13 red frozen: Tieulinh turn
+4968,cut,g4 red 1:20->1:16 blue frozen: opponent turn
+5197,keep,g4 blue 4:05->3:53 red frozen: Tieulinh turn
+#
+# --- Tieulinh in the LEFT seat, so Tieulinh is RED (the control half) ---
+8987,cut,g7 blue 1:36->1:28 red frozen: opponent turn
+9299,keep,g7 red 3:37->3:29 blue frozen: Tieulinh turn
+15606,cut,g9 blue 1:53->1:45 red frozen: opponent turn
+15778,keep,g9 red 3:20->3:12 blue frozen: Tieulinh turn

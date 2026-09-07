@@ -26,9 +26,14 @@ VI = {
     # ---- shared buttons and tips
     "btn.open": "Mở",
     "btn.clear": "Dọn",
+    "btn.clearAll": "Dọn tất cả",
     "btn.copy": "Copy",
     "tip.openFolder": "Mở thư mục này trong Explorer",
     "tip.clearFolder": "Chuyển mọi file trong thư mục này vào Thùng rác",
+    "tip.clearWork": "Chuyển file tạm và cache phân tích vào Thùng rác. "
+                     "Video trong input và output không bị xoá",
+    "tip.clearAll": "Chuyển input + output + work (kèm cache phân tích) vào "
+                    "Thùng rác. Giống lựa chọn 6 của Clear.cmd",
     "tip.openWork": "Mở thư mục work trong Explorer",
     "tip.openInput": "Mở thư mục input trong Explorer",
 
@@ -189,9 +194,14 @@ EN = {
 
     "btn.open": "Open",
     "btn.clear": "Empty",
+    "btn.clearAll": "Empty all",
     "btn.copy": "Copy",
     "tip.openFolder": "Open this folder in Explorer",
     "tip.clearFolder": "Send every file in this folder to the Recycle Bin",
+    "tip.clearWork": "Send scratch files and the analysis cache to the "
+                     "Recycle Bin. Videos in input and output are untouched",
+    "tip.clearAll": "Send input + output + work (analysis cache included) to "
+                    "the Recycle Bin. Same as choice 6 in Clear.cmd",
     "tip.openWork": "Open the work folder in Explorer",
     "tip.openInput": "Open the input folder in Explorer",
 

@@ -35,8 +35,22 @@ LOWER_BAND = (slice(30, 48), slice(5, 85))
 # the seat fixes the colour: LEFT seat is always the red player, RIGHT seat the
 # blue one. Tieulinh switches seats between games, so the colour must be read
 # per game rather than assumed once.
-NAME_L = (620, 8, 224, 38)                    # x, y, w, h -- left seat  (red)
-NAME_R = (1100, 8, 224, 38)                   # x, y, w, h -- right seat (blue)
+#
+# Each slot spans its WHOLE half of the HUD, the two meeting at the frame
+# centre, rather than sitting tight around where one VOD happened to draw the
+# plate. What moves between streams is how far the plates sit from the centre
+# title, and that is exactly the direction a tight window has no slack in:
+# measured at scale 1.00 and y 12..36 in both VODs to hand, the plate lands at
+# x 712..832 / 1059..1179 in [sd9BBehBBTY] against 1112..1232 in the VOD the
+# template was cut from. The old right slot began at 1100, forty-one pixels
+# past the start of the plate, so m_right topped out at 0.385 over every one of
+# 3473 samples -- under NAME_MATCH, so no frame ever named the right seat, the
+# whole first hour was backfilled with a later game's left seat, and both
+# clocks were attributed to the wrong player. Meeting at the centre keeps the
+# slots disjoint, so which slot matched still IS the seat, and leaves ~48 px of
+# slack outboard and ~130 px inboard of every plate seen so far.
+NAME_L = (640, 6, 320, 42)                    # x, y, w, h -- left seat  (red)
+NAME_R = (960, 6, 320, 42)                    # x, y, w, h -- right seat (blue)
 # Widths and offsets MUST stay even: the source is yuv420p, so ffmpeg rounds an
 # odd crop down, and the stacked branches then disagree on width.
 
@@ -177,10 +191,63 @@ CLOCK_GAP = 2.0     # seconds of stillness to forgive INSIDE an otherwise
                     # end of an opponent turn into the next both-frozen stretch
                     # -- which may be Tieulinh's own combat, the one thing that
                     # must never be cut. See documents/cutting-rule.md.
-P_DIGIT = 150       # BOTH clock lines need this many digit pixels to count as
+P_DIGIT = 100       # BOTH clock lines need this many digit pixels to count as
                     # present. Testing only one line false-positives on the
-                    # lobby, whose blue UI fills the upper band.
-NAME_MATCH = 0.6    # template score that identifies Tieulinh in a name slot
+                    # lobby, whose blue UI fills the upper band -- measured on
+                    # the seven longest overlay-absent stretches of
+                    # [sd9BBehBBTY], where the empty line read 0 every time
+                    # while the other read up to 596.
+                    #
+                    # 150 sat INSIDE the live signal rather than below it. The
+                    # blue digits carry about half the ink of the red ones, and
+                    # how much they carry depends on which digits are showing:
+                    # measured across one continuous, uninterrupted opponent
+                    # turn (11155-11185s), the blue line swung 121 to 266 while
+                    # the clock ticked every second throughout. So 150 was
+                    # crossed mid-turn, `widget` went false for a sample or
+                    # two, and the cut mask came out dashed -- see WIDGET_GAP
+                    # for what that then cost. 100 clears the observed live
+                    # floor by 21 and the empty reading by 100.
+WIDGET_GAP = 2.0    # seconds of unreadable overlay to forgive INSIDE an
+                    # otherwise continuous run of it. The clock overlay does
+                    # not blink out for half a second and come back: a hole
+                    # that short is the ink measurement grazing P_DIGIT, not
+                    # the widget leaving the screen. 105 such holes were
+                    # measured over [sd9BBehBBTY], 54 s in total, median 0.5 s.
+                    #
+                    # Leaving them in is not a rounding error, because
+                    # segments.py AMPLIFIES them. Each hole is a sample the cut
+                    # rule cannot fire on, so it becomes a half-second island
+                    # of "keep" inside an opponent turn; the MIN_CUT bridge
+                    # then welds neighbouring islands together across the cut
+                    # between them, and MIN_KEEP judges the welded span by its
+                    # bridged length rather than its real content. Measured on
+                    # game 7: four holes carrying 2.0 s of actual footage
+                    # became a 4.5 s keep, padding grew it to 6.7 s, and the
+                    # published video showed a 6.7 s flash of the opponent's
+                    # turn (seg0010; seg0015 was 11.2 s the same way).
+                    #
+                    # Filled the same way and for the same reason as CLOCK_GAP:
+                    # interior holes only, closed only when the overlay is
+                    # readable on BOTH sides, so this can never extend the
+                    # overlay past where it genuinely ends -- which matters,
+                    # because `widget` is what licenses a cut at all.
+NAME_MATCH = 0.72   # template score that identifies Tieulinh in a name slot.
+                    # Measured on [sd9BBehBBTY], 200 frames spread over 4h49,
+                    # scoring both slots against the plate's true side: the
+                    # slot holding the plate scored 0.852-0.967 and an empty
+                    # slot at most 0.603, so every threshold from 0.65 to 0.85
+                    # separates them perfectly and 0.72 sits in the middle.
+                    # The old 0.6 predates the slots spanning half the HUD:
+                    # a wider window has more panelling to find a best match
+                    # in, which lifted the empty-slot ceiling from about 0.52
+                    # to 0.603 and put four of 202 empty readings ABOVE the
+                    # threshold. Those cannot win while the real plate is up --
+                    # naming a seat also requires beating the other slot, and
+                    # 0.96 beats 0.60 -- but on a frame that hides the HUD
+                    # entirely both slots are empty, and then the higher piece
+                    # of noise would have named a seat on its own.
+
 # The name plate is drawn at the stream's own HUD scale, which is not the
 # frame's. Measured: a February 2025 VOD draws it 25% larger than the 2026 VOD
 # the template was cut from, and matching at one scale tops out at 0.45 there

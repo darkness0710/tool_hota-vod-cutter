@@ -85,6 +85,25 @@ def run(video, segments, out, workers=3, outdir="parts", progress=print,
 
     if failed:
         progress(f"    {len(failed)} segment(s) failed, not concatenating: {failed}")
+        # Discard the pieces. Nothing can be salvaged from them: _one always
+        # re-encodes with -y and never skips a piece that is already there, so
+        # a retry rebuilds every one of them and these files are read by
+        # nothing, ever again. Leaving them was a permanent leak, because the
+        # SUCCESS path below is the only thing that removes this directory --
+        # measured after a Ctrl+C killed one piece of a 23-piece game, 1.1 GiB
+        # sat stranded in work/ with no way to reclaim it except Clear.cmd's
+        # work group, which took the signal cache with it.
+        #
+        # Note what a killed piece looks like before trusting one: seg0020 of
+        # that run was a 73 MiB file where a whole segment is 229 MiB, i.e. a
+        # plausible-looking truncation. So resuming from surviving pieces
+        # would have to check every piece's DURATION, not just that it exists.
+        if not (keep_parts or parts_only):
+            stranded = sum(os.path.getsize(os.path.join(outdir, n))
+                           for n in os.listdir(outdir))
+            shutil.rmtree(outdir, ignore_errors=True)
+            progress(f"    discarded {stranded/2**30:.2f} GiB of unusable "
+                     f"pieces (a retry re-renders them all anyway)")
         return 1
 
     if parts_only:

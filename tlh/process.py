@@ -92,8 +92,13 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     else:
         stage(f"[1/4] clock + seat signal (reusing cached signal)")
     t, widget, seat, mine, theirs = signal_mod.interpret(sig)
+    # The unknown share belongs in here. Reporting only the two seats read as
+    # "100% left" on a stream whose first hour was never named at all, which is
+    # the difference between a measurement and a default -- and on that stream
+    # the default was wrong for three games.
     log(f"        seat: blue/right {100*(seat>0).mean():.0f}%   "
-        f"red/left {100*(seat<0).mean():.0f}%")
+        f"red/left {100*(seat<0).mean():.0f}%   "
+        f"unknown {100*(seat==0).mean():.0f}% (kept, not attributed)")
     # Report what the two clock lines actually look like. The bare "overlay not
     # found" warning this replaces was read as a fact about the video, when the
     # cause was the detector measuring the wrong colour on each line -- so say

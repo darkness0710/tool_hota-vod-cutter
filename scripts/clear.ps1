@@ -42,6 +42,31 @@ function Get-Output {
     if (-not (Test-Path "output")) { return @() }
     Get-ChildItem "output" -File -Recurse -ErrorAction SilentlyContinue
 }
+function Get-PartsDirs {
+    if (-not (Test-Path "work")) { return @() }
+    Get-ChildItem "work" -Directory -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "parts*" }
+}
+function Get-LeftoverParts {
+    # Rendered segment pieces. A render that finishes deletes its own parts
+    # directory, so anything still sitting here was left by a render that
+    # failed or was interrupted -- or put there on purpose by debug.cmd /
+    # --parts-only, which is why this asks rather than tidying up by itself.
+    #
+    # These get their own choice because of what they are NOT mixed with.
+    # They are the only big thing under work\ -- gigabytes -- while the
+    # expensive thing under work\ is signal.npz, a megabyte that costs half an
+    # hour of decoding to rebuild. One "work" group meant reclaiming the
+    # gigabytes always threw away the cache too, so the honest options are
+    # "the big worthless files" and "all of it".
+    # -LiteralPath, not a bare path: every downloaded folder name carries the
+    # [DD-MM-YYYY] and [videoid] brackets, and PowerShell reads those as a
+    # character class. Without it this silently measured 0 files while 1.05 GiB
+    # sat in work\ -- the same trap the README flags for --only globs.
+    @(Get-PartsDirs) | ForEach-Object {
+        Get-ChildItem -LiteralPath $_.FullName -File -Recurse -ErrorAction SilentlyContinue
+    }
+}
 function Get-Work {
     # index.json is deliberately spared. It maps each input to the output it
     # produced, which is what makes re-running skip instead of rendering a
@@ -61,6 +86,7 @@ Line
 $parts  = Measure-Set (Get-Parts)
 $inputs = Measure-Set (Get-InputVideos)
 $output = Measure-Set (Get-Output)
+$pieces = Measure-Set (Get-LeftoverParts)
 $work   = Measure-Set (Get-Work)
 
 function Show-Drive {
@@ -86,8 +112,9 @@ Write-Host ""
 Write-Host ("    1  unfinished downloads (.part)   {0,3} files  {1}" -f $parts.Count,  (GB $parts.Bytes))
 Write-Host ("    2  input   source videos          {0,3} files  {1}" -f $inputs.Count, (GB $inputs.Bytes))
 Write-Host ("    3  output  finished + chapters    {0,3} files  {1}" -f $output.Count, (GB $output.Bytes))
-Write-Host ("    4  work    scratch + signal cache {0,3} files  {1}" -f $work.Count,   (GB $work.Bytes))
-Write-Host ("    5  everything above                          {0}" -f (GB ($parts.Bytes + $inputs.Bytes + $output.Bytes + $work.Bytes)))
+Write-Host ("    4  work    leftover render pieces {0,3} files  {1}" -f $pieces.Count, (GB $pieces.Bytes))
+Write-Host ("    5  work    all scratch + cache    {0,3} files  {1}" -f $work.Count,   (GB $work.Bytes))
+Write-Host ("    6  everything above                          {0}" -f (GB ($parts.Bytes + $inputs.Bytes + $output.Bytes + $work.Bytes)))
 Write-Host "    0  cancel"
 
 if ($parts.Count -gt 0) {
@@ -99,18 +126,30 @@ if ($parts.Count -gt 0) {
 if ($output.Count -gt 0) {
     Write-Host ""
     Write-Host "  Note: output holds finished videos. Copy anything you want to" -ForegroundColor Yellow
-    Write-Host "        keep before clearing it." -ForegroundColor Yellow
+    Write-Host "        keep before clearing it. Clearing output does NOT touch" -ForegroundColor Yellow
+    Write-Host "        work\, so pick 4 or 5 as well to reclaim that space." -ForegroundColor Yellow
+}
+if ($pieces.Count -gt 0) {
+    Write-Host ""
+    Write-Host ("  Note: {0} of render pieces are sitting in work\. A render" -f (GB $pieces.Bytes).Trim()) -ForegroundColor Yellow
+    Write-Host "        that finishes deletes its own, so these are either from" -ForegroundColor Yellow
+    Write-Host "        a run that was interrupted -- nothing will ever read" -ForegroundColor Yellow
+    Write-Host "        them again -- or from debug.cmd / --parts-only, where" -ForegroundColor Yellow
+    Write-Host "        the pieces ARE the result you asked for." -ForegroundColor Yellow
+    Write-Host "        Choice 4 removes them and leaves signal.npz alone;" -ForegroundColor Yellow
+    Write-Host "        choice 5 also drops the cache, costing a re-analysis." -ForegroundColor Yellow
 }
 
 Write-Host ""
 $choice = (Read-Host "  Choose").Trim()
 
 $targets = switch ($choice) {
-    "1" { @{ Name = "unfinished downloads"; Set = $parts } }
-    "2" { @{ Name = "input videos";         Set = $inputs } }
-    "3" { @{ Name = "output";               Set = $output } }
-    "4" { @{ Name = "work";                 Set = $work } }
-    "5" { @{ Name = "everything";
+    "1" { @{ Name = "unfinished downloads";  Set = $parts } }
+    "2" { @{ Name = "input videos";          Set = $inputs } }
+    "3" { @{ Name = "output";                Set = $output } }
+    "4" { @{ Name = "leftover render pieces"; Set = $pieces } }
+    "5" { @{ Name = "work";                  Set = $work } }
+    "6" { @{ Name = "everything";
              Set = (Measure-Set (@(Get-Parts) + @(Get-InputVideos) + @(Get-Output) + @(Get-Work))) } }
     default { $null }
 }
@@ -169,11 +208,19 @@ foreach ($f in $targets.Set.Files) {
 }
 
 # Empty folders left behind under work\ are just noise.
+#
+# -LiteralPath on BOTH calls. A downloaded folder is named "[DD-MM-YYYY] title
+# [videoid]", and a bare path argument reads those brackets as a wildcard
+# character class: the emptiness test then errored, returned nothing, and
+# judged a folder holding gigabytes to be empty. It only ever escaped deleting
+# one because Remove-Item read the same brackets the same way and matched
+# nothing -- two bugs cancelling, on a line that uses -Force and so does NOT
+# go to the Recycle Bin this script otherwise promises.
 if (Test-Path "work") {
     Get-ChildItem "work" -Directory -Recurse -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending |
-        Where-Object { -not (Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue) } |
-        ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+        Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Recurse -File -ErrorAction SilentlyContinue) } |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 Line

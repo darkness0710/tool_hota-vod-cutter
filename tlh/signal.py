@@ -320,6 +320,12 @@ def interpret(sig):
     # fall outside `widget` -- which keeps that footage rather than cutting it,
     # the safe direction.
     widget = (n_up > C.P_DIGIT) & (n_lo > C.P_DIGIT)
+    # Close half-second holes in it, for the reason CLOCK_GAP closes them in the
+    # clock masks: the overlay does not leave the screen and come back inside a
+    # second, so a hole that short is the ink grazing P_DIGIT. Left in, each one
+    # becomes an island the cut rule cannot fire on, and segments.py inflates
+    # those islands into a kept sliver of opponent turn -- see C.WIDGET_GAP.
+    widget = _fill_short_gaps(widget, int(round(C.WIDGET_GAP * C.SR)))
 
     seat = np.zeros(len(t), np.int8)
     checked = m_left >= 0
@@ -331,20 +337,34 @@ def interpret(sig):
             last = seat[i]
         elif last:
             seat[i] = last
-    if (seat == 0).any():
-        fallback = next((s for s in seat if s), 0)
-        if not fallback:
-            # Nothing in the whole stream named a seat. Picking one anyway is
-            # a coin toss on which clock belongs to whom, and getting it wrong
-            # cuts Tieulinh's own turns and keeps the opponent's -- the exact
-            # opposite of the job. Say it out loud instead of guessing.
+    # Samples before the FIRST named seat stay unknown (0). They used to be
+    # backfilled from the first seat found anywhere later, and that is a coin
+    # toss rather than a reading: the seat changes between games inside one
+    # stream, so a seat measured in game 5 says nothing about game 1. Measured
+    # on [sd9BBehBBTY], where a mispositioned NAME_R meant the right seat never
+    # matched: the first plate ever found belonged to a left-seated game at
+    # 1:02:59, the whole first hour was backfilled left, and games 1, 2 and 4 --
+    # which Tieulinh played from the RIGHT seat -- had both clocks attributed to
+    # the wrong player. Every one of Tieulinh's own turns in them was cut and
+    # every one of the opponent's was kept, which is the one failure this tool
+    # must not have. An unknown seat now refuses to attribute a clock at all;
+    # see the end of this function for what that costs.
+    unknown = seat == 0
+    if unknown.any():
+        span = f"{t[unknown].min():.0f}-{t[unknown].max():.0f}s"
+        if unknown.all():
             warnings.warn(
-                "no frame matched the name plate: the seat is unknown and "
-                "every turn will be attributed to the right-hand seat. Check "
-                "NAME_L/NAME_R and C.NAME_SCALES against this VOD.",
+                "no frame matched the name plate: the seat is unknown for the "
+                "whole video, so no turn can be attributed and nothing will be "
+                "cut as an opponent turn. Check NAME_L/NAME_R and "
+                "C.NAME_SCALES against this VOD.",
                 RuntimeWarning, stacklevel=2)
-            fallback = 1
-        seat[seat == 0] = fallback
+        else:
+            warnings.warn(
+                f"the name plate was not matched before {t[unknown].max():.0f}s "
+                f"({span}): the seat is unknown there, so that stretch is kept "
+                f"rather than attributed to whichever seat a later game used.",
+                RuntimeWarning, stacklevel=2)
 
     # A clock counts as running if it changed in most one-second bins of a
     # small window. The window absorbs aliasing -- at 2 fps against a 1 Hz
@@ -372,4 +392,13 @@ def interpret(sig):
     gap = int(round(C.CLOCK_GAP * C.SR))
     mine = _fill_short_gaps(mine, gap)
     theirs = _fill_short_gaps(theirs, gap)
+    # Where the seat is unknown, call BOTH clocks running. Neither of the two
+    # clock-based cuts can then fire -- an opponent turn needs `theirs & ~mine`
+    # and waiting-on-combat needs `~mine & ~theirs` -- so the stretch is kept
+    # whole. Dead lobby and menu screens in it are still cut, because those are
+    # recognised from the screen itself and never ask whose clock is whose.
+    # This is the safe direction: keeping the opponent's turn wastes the
+    # viewer's time, cutting Tieulinh's destroys the video.
+    mine[unknown] = True
+    theirs[unknown] = True
     return t, widget, seat, mine, theirs

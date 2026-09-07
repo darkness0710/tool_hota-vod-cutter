@@ -131,6 +131,13 @@ _HTML = r"""<!doctype html>
                 font-family: ui-monospace, Consolas, monospace; }
   .folders dd { margin: 0; display: flex; gap: 8px; align-items: center;
                 color: var(--ink); font-variant-numeric: tabular-nums; }
+  /* The one button that removes several folders at once sits apart from the
+     per-folder rows, with its total beside it: the number is the point, so it
+     is not allowed to be the thing the reader has to add up themselves. */
+  .clearall { display: flex; align-items: center; gap: 10px; margin-top: 12px;
+              padding-top: 12px; border-top: 1px solid var(--line);
+              font-size: 13px; }
+  .clearall .sz { color: var(--dim); font-variant-numeric: tabular-nums; }
   .sep { color: var(--dim); font-size: 13px; margin-bottom: 11px; }
   /* Spelled once, so the lines inside a card sit at the same inset and the
      same distance apart. */
@@ -242,7 +249,24 @@ _HTML = r"""<!doctype html>
         <button class="small danger" data-clear="output" data-t="btn.clear"
           data-tt="tip.clearFolder"
           title="Chuyển mọi file trong thư mục này vào Thùng rác">Dọn</button></dd>
+      <!-- work\ is listed for one reason: it was the only folder holding
+           gigabytes that this page never mentioned, so a failed render's
+           leftovers could not be seen OR removed from here. -->
+      <dt class="p-work">work\</dt>
+      <dd><span id="szwork">&mdash;</span>
+        <button class="small" data-open="work" data-t="btn.open"
+          data-tt="tip.openWork"
+          title="Mở thư mục work trong Explorer">Mở</button>
+        <button class="small danger" data-clear="work" data-t="btn.clear"
+          data-tt="tip.clearWork"
+          title="Chuyển file tạm và cache phân tích vào Thùng rác">Dọn</button></dd>
     </dl>
+    <div class="clearall">
+      <button class="small danger" data-clear="all" data-t="btn.clearAll"
+        data-tt="tip.clearAll"
+        title="Chuyển input + output + work (kèm cache) vào Thùng rác">Dọn tất cả</button>
+      <span id="szall" class="sz">&mdash;</span>
+    </div>
   </div>
 
   <div class="tabs">
@@ -687,14 +711,22 @@ async function refresh() {
     .forEach(el => { if (value) el.textContent = value; });
   put(".p-out", P.output ? P.output + "\\" : "");
   put(".p-in", P.input ? P.input + "\\" : "");
+  put(".p-work", P.work ? P.work + "\\" : "");
   put(".p-parts", P.parts || "");
 
   const F = s.folders || {};
-  for (const [id, key] of [["szin", "input"], ["szout", "output"]]) {
+  for (const [id, key] of [["szin", "input"], ["szout", "output"],
+                           ["szwork", "work"]]) {
     const f = F[key] || {};
     document.getElementById(id).textContent =
       size(f.bytes) + "   " + (f.files || 0) + " file";
   }
+  // The total on the Dọn tất cả button comes from the server's `clear` block,
+  // not from adding up the three folder sizes: work/ keeps index.json, so the
+  // two numbers are not the same and the button must promise the smaller one.
+  const A = ((s.clear || {}).all) || {};
+  document.getElementById("szall").textContent =
+    A.files ? size(A.bytes) + "   " + A.files + " file" : "không có gì";
 
   const d = s.drive, pct = d.total ? Math.round(100 * d.used / d.total) : 0;
   document.getElementById("dv").textContent = "Ổ " + d.root;
@@ -770,12 +802,29 @@ document.addEventListener("click", async e => {
   const clr = e.target.closest("[data-clear]");
   if (clr) {
     const key = clr.dataset.clear;
-    const f = ((LAST && LAST.folders) || {})[key] || {};
-    const where = ((LAST && LAST.paths) || {})[key] || key;
-    if (!f.files) { note("Thư mục này đang trống."); return; }
-    if (!ask("Dọn sạch thư mục này?", "", where, "",
-             f.files + " file, " + size(f.bytes), "",
-             "Tất cả sẽ được chuyển vào Thùng rác, có thể phục hồi.")) return;
+    // Size from `clear`, not `folders`: this is what the server will actually
+    // recycle, so the figure in the dialog is the figure that goes.
+    const C = ((LAST && LAST.clear) || {})[key] || {};
+    const P = (LAST && LAST.paths) || {};
+    if (!C.files) { note("Không có gì để dọn."); return; }
+    const lines = key === "all"
+      ? ["Dọn TẤT CẢ?", "",
+         P.input + "\\", P.output + "\\", P.work + "\\   (kèm cache phân tích)", "",
+         C.files + " file, " + size(C.bytes), "",
+         "Gồm cả video gốc đã tải và video đã cắt.",
+         "Cache phân tích mất theo, nên lần cắt sau phải phân tích lại.",
+         "Tất cả sẽ được chuyển vào Thùng rác, có thể phục hồi."]
+      : key === "work"
+      ? ["Dọn thư mục tạm?", "", P.work + "\\", "",
+         C.files + " file, " + size(C.bytes), "",
+         "Gồm cache phân tích, nên lần cắt sau phải phân tích lại,",
+         "và gồm cả lịch sử việc đã chạy hiện trên trang này.",
+         "Video trong input\\ và output\\ KHÔNG bị xoá.",
+         "Tất cả sẽ được chuyển vào Thùng rác, có thể phục hồi."]
+      : ["Dọn sạch thư mục này?", "", (P[key] || key) + "\\", "",
+         C.files + " file, " + size(C.bytes), "",
+         "Tất cả sẽ được chuyển vào Thùng rác, có thể phục hồi."];
+    if (!ask.apply(null, lines)) return;
     const { ok, data } = await post("/api/folders/clear", { where: key });
     note(ok ? (data.message || "đã dọn") : (data.error || "không dọn được"), !ok);
     return refresh();
