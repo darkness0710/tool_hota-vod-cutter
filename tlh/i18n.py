@@ -131,12 +131,13 @@ VI = {
 
     # ---- trim tab
     "h2.trim": "Cắt một đoạn ra file riêng",
-    "trim.intro": "Chọn video trong "
+    "trim.intro": "<ul><li>Chọn video trong "
                   '<code class="p-in">input\\</code> hoặc '
-                  '<code class="p-out">output\\</code>, tua tới chỗ cần rồi '
-                  "bấm <b>Đặt tại đây</b>. Đoạn cắt ra nằm cùng thư mục với "
-                  "bản gốc, chạy được ngay ở tab <b>Chức năng</b> — để thử "
-                  "thuật toán trên 15 phút thay vì 4 tiếng.",
+                  '<code class="p-out">output\\</code>, tua tới chỗ cần '
+                  "rồi bấm <b>Đặt tại đây</b>.</li>"
+                  "<li>Đoạn cắt ra nằm cùng thư mục với bản gốc, chạy được "
+                  "ngay ở tab <b>Chức năng</b> — để thử thuật toán trên 15 "
+                  "phút thay vì 4 tiếng.</li></ul>",
     "trim.sameFolder": "File mới nằm cùng thư mục với bản gốc, "
                        "không sửa gì vào bản gốc.",
     "btn.preview": "Xem",
@@ -328,13 +329,14 @@ EN = {
     "qr.failed": "could not remove it",
 
     "h2.trim": "Cut a range out into its own file",
-    "trim.intro": "Pick a video in "
+    "trim.intro": "<ul><li>Pick a video in "
                   '<code class="p-in">input\\</code> or '
                   '<code class="p-out">output\\</code>, seek to the moment '
-                  "and press <b>Set here</b>. The clip lands in the same "
-                  "folder as its source and can be run straight from the "
-                  "<b>Main</b> tab — to try the detector on fifteen "
-                  "minutes instead of four hours.",
+                  "and press <b>Set here</b>.</li>"
+                  "<li>The clip lands in the same folder as its source and "
+                  "can be run straight from the <b>Main</b> tab — to try the "
+                  "detector on fifteen minutes instead of four hours.</li>"
+                  "</ul>",
     "trim.sameFolder": "The new file lands in the same folder as its "
                        "source. The original is left alone.",
     "btn.preview": "Preview",

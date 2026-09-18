@@ -94,12 +94,13 @@ _HTML = r"""<!doctype html>
   .when b { color: var(--ink); font-weight: 600; }
   .meta { color: var(--dim); font-size: 13px; }
   .meta b { color: var(--ink); font-weight: 600; }
-  /* A measure and a line height, because these notes are prose, not labels.
-     Run full width on a wide window they came out as five unbroken lines of
-     small text, which is read as a wall and skipped. 78ch keeps a line near
-     the length an eye tracks without losing its place. */
-  .note { margin-top: 6px; font-size: 13px; line-height: 1.6;
-          max-width: 78ch; }
+  /* No max-width. A measure was tried and it was the wrong tool here: these
+     notes sit in a card sized by the 16:9 video player above them, so capping
+     the text at a comfortable reading width left the right 40% of the card
+     visibly empty, which reads as a broken layout rather than as a kind one.
+     The list below is what actually fixes the wall of text -- each item is one
+     short sentence, so the line length never has to carry a paragraph. */
+  .note { margin-top: 6px; font-size: 13px; line-height: 1.6; }
   /* A note that carries more than one fact is a LIST, not a paragraph with
      breaks in it. Three facts run together read as one wall and get skipped;
      bulleted, each is a thing the eye can land on and leave. The bullet also
@@ -111,8 +112,14 @@ _HTML = r"""<!doctype html>
   .note li::marker, .foot li::marker { color: var(--line); }
   .note.warn { color: var(--warn); }
   .note.bad { color: var(--bad); }
+  /* Baseline, not the grid default of stretch. A dd holding a button.small
+     is taller than its label by that button's padding, so with stretch the
+     label sat against the top of the row while the value sat a few pixels
+     lower -- every row with a button read as misaligned, and the rows without
+     one looked fine, which made it look like a rendering glitch rather than a
+     rule. Baseline lines the two up by the thing the eye actually uses. */
   .kv { display: grid; grid-template-columns: 120px 1fr; gap: 2px 10px;
-        margin-top: 8px; font-size: 13px; }
+        align-items: baseline; margin-top: 8px; font-size: 13px; }
   .kv dt { color: var(--dim); }
   .kv dd { margin: 0; overflow-wrap: anywhere; }
   pre { background: #0e1014; border: 1px solid var(--line); border-radius: 6px;
@@ -139,13 +146,23 @@ _HTML = r"""<!doctype html>
      It used to stack the path above its own numbers and paint the path in
      full-strength ink while the size stayed dim -- brightest on the thing the
      reader already knows, faintest on the thing they came to read. */
+  /* Three columns, not two. The size and the buttons used to share one
+     max-content column, so a row reading "6.71 GiB 3 file" pushed its buttons
+     further left than a row reading "0 0 file" -- the buttons came out ragged
+     while the file list right below them, which gives each part its own
+     column, lined up. display:contents on the dd is what lets the size and
+     the button group be items of THIS grid instead of a grid of their own;
+     a nested grid aligns within a row and never across them. */
   .folders { font-size: 13px; display: grid; align-items: center;
-             grid-template-columns: 1fr max-content; gap: 8px 16px; }
+             grid-template-columns: 1fr max-content max-content;
+             gap: 8px 16px; }
   .folders dt { color: var(--dim); font-size: 12px; min-width: 0;
                 overflow-wrap: anywhere;
                 font-family: ui-monospace, Consolas, monospace; }
-  .folders dd { margin: 0; display: flex; gap: 8px; align-items: center;
-                color: var(--ink); font-variant-numeric: tabular-nums; }
+  .folders dd { margin: 0; display: contents; }
+  .folders dd .sz { color: var(--ink); text-align: right;
+                    font-variant-numeric: tabular-nums; }
+  .folders dd .acts { display: flex; gap: 8px; align-items: center; }
   /* The one button that removes several folders at once sits apart from the
      per-folder rows, with its total beside it: the number is the point, so it
      is not allowed to be the thing the reader has to add up themselves. */
@@ -223,12 +240,12 @@ _HTML = r"""<!doctype html>
                  font-family: ui-monospace, Consolas, monospace; }
   .marks .gap { flex: 1; min-width: 20px; }
   /* The controls under a paragraph need air; .row carries none of its own. */
-  #tab-trim .row { margin-top: 14px; }
+  #tab-trim .row, #tab-qr .row { margin-top: 14px; }
   .kv dd a.mail { color: var(--accent); text-decoration: none; }
   .kv dd a.mail:hover { text-decoration: underline; }
   .foot { color: var(--dim); font-size: 12px; margin-top: 26px;
           border-top: 1px solid var(--line); padding-top: 12px;
-          line-height: 1.6; max-width: 78ch; }
+          line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -250,32 +267,32 @@ _HTML = r"""<!doctype html>
     </div>
     <dl class="folders">
       <dt class="p-in">input\</dt>
-      <dd><span id="szin">&mdash;</span>
+      <dd><span id="szin" class="sz">&mdash;</span><span class="acts">
         <button class="small" data-open="input" data-t="btn.open"
           data-tt="tip.openFolder"
           title="Mở thư mục này trong Explorer">Mở</button>
         <button class="small danger" data-clear="input" data-t="btn.clear"
           data-tt="tip.clearFolder"
-          title="Chuyển mọi file trong thư mục này vào Thùng rác">Dọn</button></dd>
+          title="Chuyển mọi file trong thư mục này vào Thùng rác">Dọn</button></span></dd>
       <dt class="p-out">output\</dt>
-      <dd><span id="szout">&mdash;</span>
+      <dd><span id="szout" class="sz">&mdash;</span><span class="acts">
         <button class="small" data-open="output" data-t="btn.open"
           data-tt="tip.openFolder"
           title="Mở thư mục này trong Explorer">Mở</button>
         <button class="small danger" data-clear="output" data-t="btn.clear"
           data-tt="tip.clearFolder"
-          title="Chuyển mọi file trong thư mục này vào Thùng rác">Dọn</button></dd>
+          title="Chuyển mọi file trong thư mục này vào Thùng rác">Dọn</button></span></dd>
       <!-- work\ is listed for one reason: it was the only folder holding
            gigabytes that this page never mentioned, so a failed render's
            leftovers could not be seen OR removed from here. -->
       <dt class="p-work">work\</dt>
-      <dd><span id="szwork">&mdash;</span>
+      <dd><span id="szwork" class="sz">&mdash;</span><span class="acts">
         <button class="small" data-open="work" data-t="btn.open"
           data-tt="tip.openWork"
           title="Mở thư mục work trong Explorer">Mở</button>
         <button class="small danger" data-clear="work" data-t="btn.clear"
           data-tt="tip.clearWork"
-          title="Chuyển file tạm và cache phân tích vào Thùng rác">Dọn</button></dd>
+          title="Chuyển file tạm và cache phân tích vào Thùng rác">Dọn</button></span></dd>
     </dl>
     <div class="clearall">
       <button class="small danger" data-clear="all" data-t="btn.clearAll"
@@ -360,11 +377,13 @@ _HTML = r"""<!doctype html>
   <div id="tab-trim" hidden>
   <h2 data-t="h2.trim">Cắt một đoạn ra file riêng</h2>
   <div class="card">
-    <div class="note" data-th="trim.intro">Chọn video trong
-      <code class="p-in">input\</code> hoặc <code class="p-out">output\</code>,
-      tua tới chỗ cần rồi bấm <b>Đặt tại đây</b>. Đoạn cắt ra nằm cùng thư mục
-      với bản gốc, chạy được ngay ở tab <b>Chức năng</b> &mdash; để thử thuật
-      toán trên 15 phút thay vì 4 tiếng.</div>
+    <div class="note" data-th="trim.intro"><ul>
+      <li>Chọn video trong <code class="p-in">input\</code> hoặc
+        <code class="p-out">output\</code>, tua tới chỗ cần rồi bấm
+        <b>Đặt tại đây</b>.</li>
+      <li>Đoạn cắt ra nằm cùng thư mục với bản gốc, chạy được ngay ở tab
+        <b>Chức năng</b> &mdash; để thử thuật toán trên 15 phút thay vì 4
+        tiếng.</li></ul></div>
     <div class="row">
       <select id="tsrc"></select>
       <button class="small" id="tload" data-t="btn.preview"
