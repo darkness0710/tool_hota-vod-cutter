@@ -206,6 +206,7 @@ VI = {
     "h2.author": "Tác giả",
     "author.dev": "Dev",
     "author.email": "Email",
+    "author.page": "Giới thiệu",
     "tip.copyEmail": "Copy email vào clipboard",
 
     # ---- foot
@@ -402,6 +403,7 @@ EN = {
     "h2.author": "Author",
     "author.dev": "Dev",
     "author.email": "Email",
+    "author.page": "About",
     "tip.copyEmail": "Copy the email to the clipboard",
 
     "foot": "<ul><li>Jobs only run while the black window (the server) is "

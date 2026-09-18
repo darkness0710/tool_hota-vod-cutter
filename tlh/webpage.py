@@ -437,6 +437,10 @@ _HTML = r"""<!doctype html>
         <button class="small" data-copy-text="nguyenthanhhaid13cn7@gmail.com"
           data-t="btn.copy" data-tt="tip.copyEmail"
           title="Copy email vào clipboard">Copy</button></dd>
+      <dt data-t="author.page">Giới thiệu</dt><dd><a class="mail"
+        href="https://darkness0710.github.io/about/"
+        target="_blank" rel="noreferrer"
+        >darkness0710.github.io/about</a></dd>
     </dl>
   </div>
   </div><!-- /tab-author -->
