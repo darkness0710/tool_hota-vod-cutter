@@ -38,7 +38,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import fetch, ffmpeg, jsruntime, naming
-from .config import ROOT
+from .config import QR_PREFIX, ROOT
 from .webpage import PAGE
 
 WORK_DIR = ROOT / "work"
@@ -250,6 +250,10 @@ PATTERNS = [
      lambda m: {"stage": "rendering",
                 "percent": int(100 * int(m.group(1)) / max(1, int(m.group(2)))),
                 "detail": f"piece {m.group(1)} of {m.group(2)}   còn ~{m.group(4)} phút"}),
+    (re.compile(r"^\s*qr\s+(\d+)%\s+(\S+) of (\S+)(?:\s+eta (\S+))?"),
+     lambda m: {"stage": "rendering", "percent": int(m.group(1)),
+                "detail": f"xoá QR   {m.group(2)} of {m.group(3)}"
+                          + (f"   còn {m.group(4)}" if m.group(4) else "")}),
     (re.compile(r"^\s*Title\s+(.+?)\s*$"), lambda m: {"title": m.group(1)}),
     (re.compile(r"^\s*Size\s+(.+?)\s*$"), lambda m: {"size": m.group(1)}),
     (re.compile(r"^\s*Streams\s+(.+?)\s*$"), lambda m: {"streams": m.group(1)}),
@@ -397,6 +401,56 @@ def start_job(url=None, filename=None, mode="full"):
     threading.Thread(target=_reader, args=(job_id, proc, log_path),
                      daemon=True).start()
     return job_id
+
+
+def start_qr_job(ref):
+    """Spawn run.py --remove-qr for one video. Returns (job id, message).
+
+    A job rather than a blocking request: this re-encodes the whole file, which
+    for a five-hour VOD is an hour of work. The page already has a job list
+    with a log, a percentage and a Stop button, so the scrub uses it rather
+    than growing a second way to watch something run.
+    """
+    src, where = qualified_video(ref)
+    if src is None:
+        return None, "không có file đó trong input/ hay output/"
+    if src.name.startswith(QR_PREFIX):
+        return None, "file này đã được xoá QR rồi"
+    out = src.with_name(QR_PREFIX + src.name)
+    if out.exists():
+        return None, f"đã có {out.name} trong {where}/"
+
+    job_id = uuid.uuid4().hex[:12]
+    # Which folder the result lands in, recorded because the page's "Mở thư
+    # mục" button has to know. It used to infer output/ from the job having
+    # produced a file at all, which is right for a cut and wrong here: a scrub
+    # writes beside its SOURCE, so scrubbing something in input/ put the
+    # button on the wrong folder, Explorer found nothing, and the failure was
+    # invisible because the click discarded the reply.
+    job = {"id": job_id, "url": None, "file": f"{where}/{src.name}",
+           "where": where,
+           "mode": "remove-qr", "stage": "queued", "percent": 0,
+           "detail": "starting", "title": QR_PREFIX + src.name,
+           "started": time.time(), "updated": time.time(), "log": []}
+    JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = JOBS_DIR / f"{job_id}.log"
+    with _lock:
+        _jobs[job_id] = job
+    _save(job)
+
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    proc = subprocess.Popen(
+        [sys.executable, "run.py", "--remove-qr", str(src)],
+        cwd=str(ROOT), env=env, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    adopted = _adopt(proc)
+    with _lock:
+        _procs[job_id] = proc
+    _update(job_id, stage="rendering", pid=proc.pid, adopted=adopted)
+    threading.Thread(target=_reader, args=(job_id, proc, log_path),
+                     daemon=True).start()
+    return job_id, f"đang xoá QR -> {where}/{out.name}"
 
 
 def delete_job(job_id):
@@ -643,19 +697,44 @@ def _busy_with(name):
     return None
 
 
-def input_video(name):
-    """Path of `name` in input/, or None if it is not a video sitting there.
+FOLDERS = {"input": INPUT_DIR, "output": OUTPUT_DIR}
 
-    One rule for every endpoint that takes a filename from the page: a bare
-    basename, no separators, that exists in input/ and looks like a video.
-    Nothing here is ever passed through a shell.
+
+def qualified_video(ref):
+    """(path, folder) for a reference like "output/a.mp4", or (None, None).
+
+    The page names files by folder now, because the same basename can sit in
+    both: output/ is full of files cut FROM input/, and several features want
+    either. A bare name still means input/, which keeps older links and the
+    /api/jobs contract working unchanged.
+
+    The rule that matters is unchanged too: exactly one optional folder token
+    from a fixed set, then a bare basename with no separators in it, which
+    must exist and look like a video. Nothing here reaches a shell, and no
+    reference can escape these two directories.
     """
-    if not name or name != os.path.basename(name):
-        return None
-    path = INPUT_DIR / name
+    if not ref:
+        return None, None
+    where, _, name = ref.rpartition("/")
+    where = where or "input"
+    folder = FOLDERS.get(where)
+    if folder is None or name != os.path.basename(name):
+        return None, None
+    path = folder / name
     if not path.is_file() or path.suffix.lower() not in VIDEO_EXT:
-        return None
-    return path
+        return None, None
+    return path, where
+
+
+def input_video(name):
+    """Path of `name` in input/, or None. Kept for the job endpoint.
+
+    Running the cutter over a file in output/ would be cutting a cut, so that
+    endpoint stays input-only on purpose while the rest moved to
+    qualified_video().
+    """
+    path, where = qualified_video(name)
+    return path if where == "input" else None
 
 
 def _listing(folder):
@@ -673,7 +752,7 @@ def _listing(folder):
 
 
 def trim_clip(name, start, end):
-    """Copy [start, end) of an input video out to a new file in input/.
+    """Copy [start, end) of a video out to a new file beside it.
 
     Stream copy, not a re-encode: a ninety-minute cut out of a four-hour VOD
     takes seconds this way and minutes the other, and the pixels are the
@@ -682,9 +761,9 @@ def trim_clip(name, start, end):
     test piece down to something quick to run does not matter, and the page
     says so rather than implying frame accuracy.
     """
-    src = input_video(name)
+    src, where = qualified_video(name)
     if src is None:
-        return None, "không có file đó trong input/"
+        return None, "không có file đó trong input/ hay output/"
     try:
         start, end = float(start), float(end)
     except (TypeError, ValueError):
@@ -697,8 +776,12 @@ def trim_clip(name, start, end):
     if end - start < TRIM_MIN:
         return None, f"đoạn quá ngắn (dưới {TRIM_MIN:.0f} giây)"
 
-    out_name = naming.clip_name(src.name, start, end, folder=str(INPUT_DIR))
-    out = INPUT_DIR / out_name
+    # Beside its source, not always in input/. A clip cut from an output file
+    # is a sample of a finished cut; filing it under input/ would offer it back
+    # to the cutter as raw footage, which it is not.
+    folder = FOLDERS[where]
+    out_name = naming.clip_name(src.name, start, end, folder=str(folder))
+    out = folder / out_name
     cmd = [ffmpeg.FF, "-ss", f"{start:.3f}", "-i", str(src),
            "-t", f"{end - start:.3f}", "-c", "copy",
            "-avoid_negative_ts", "make_zero", "-y", str(out)]
@@ -709,7 +792,7 @@ def trim_clip(name, start, end):
             out.unlink(missing_ok=True)
         tail = (done.stderr or "").strip().splitlines()[-1:] or ["ffmpeg lỗi"]
         return None, tail[0][:200]
-    return {"name": out_name, "bytes": out.stat().st_size,
+    return {"name": out_name, "where": where, "bytes": out.stat().st_size,
             "length": ffmpeg.duration(str(out)) or (end - start)}, "đã cắt"
 
 
@@ -885,11 +968,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def _media(self):
-        """The input video this request names, or None once 404 is sent."""
+        """The video this request names, or None once 404 is sent."""
         name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
-        target = input_video(name)
+        target, _ = qualified_video(name)
         if target is None:
-            self._send(404, json.dumps({"error": "no such file in input/"}))
+            self._send(404, json.dumps({"error": "no such file"}))
             return None
         return target
 
@@ -1030,6 +1113,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"error": message},
                                                   ensure_ascii=False))
             return self._send(200, json.dumps(dict(clip, message=message),
+                                              ensure_ascii=False))
+
+        if path == "/api/remove-qr":
+            job_id, message = start_qr_job(body.get("name"))
+            if job_id is None:
+                return self._send(400, json.dumps({"error": message},
+                                                  ensure_ascii=False))
+            return self._send(200, json.dumps({"id": job_id,
+                                               "message": message},
                                               ensure_ascii=False))
 
         if path == "/api/channels":

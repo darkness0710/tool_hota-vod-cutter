@@ -449,6 +449,16 @@ if not (config.TEMPLATES / "digits.npz").exists():
     print("  FAIL  templates/digits.npz is missing")
     sys.exit(1)
 print("  OK    templates present")
+# A WARNING, not a failure, and the difference is deliberate: without the
+# templates the detector cannot read a frame at all, while without this image
+# the cutter still cuts -- it just leaves the donation QR visible. Silence
+# would be wrong too, because "the QR is still there" is exactly the kind of
+# thing nobody checks until the video is public.
+if config.QR_COVER.exists():
+    print("  OK    QR cover image:", config.QR_COVER.name)
+else:
+    print("  WARN  no", config.QR_COVER, "-- cuts will keep the donation QR")
+    print("        visible, and the Xoá QR tab will not work. Put a PNG there.")
 name, flag = encoder.detect(log=lambda *a: None, force=True)
 print("  OK    video encoder:", name)
 if name == "libx264":

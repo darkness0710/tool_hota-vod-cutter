@@ -7,7 +7,7 @@ import numpy as np
 
 from . import config as C
 from . import render as render_mod
-from . import naming, screens, segments as seg_mod
+from . import naming, qrcover, screens, segments as seg_mod
 from . import signal as signal_mod
 from . import timeline
 from .ffmpeg import duration, hms
@@ -163,16 +163,25 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
         log("  nothing to keep, no output written")
         return 1
 
+    # Found once, before any piece is encoded, so every piece gets the SAME
+    # rectangle. Per-piece detection would let one piece miss and publish the
+    # code on its own.
+    cover = None
+    if C.QR_COVER.exists():
+        cover = (C.QR_COVER,) + qrcover.find(video, dur, progress=log)
+    else:
+        log(f"        no cover image at {C.QR_COVER}, QR left visible")
+
     if per_game:
         return _render_per_game(video, segs, sig, out, workdir, render_workers,
-                                keep_parts, started, stage, log)
+                                keep_parts, started, stage, log, cover)
 
     partsdir = os.path.join(workdir, "parts")
     stage(f"[4/4] render -> {partsdir if parts_only else out}")
     rc = render_mod.run(video, segs, out, render_workers,
                         outdir=partsdir, progress=log,
                         keep_parts=keep_parts or parts_only,
-                        parts_only=parts_only)
+                        parts_only=parts_only, cover=cover)
     if rc == 0 and parts_only:
         log(f"  done  pieces in {partsdir}   "
             f"{(time.time()-started)/60:.1f} min total")
@@ -184,7 +193,7 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
 
 def _render_per_game(video, segs, sig, out, workdir, render_workers,
-                     keep_parts, started, stage, log):
+                     keep_parts, started, stage, log, cover=None):
     """One video per game, instead of one video for the whole stream.
 
     The games come from timeline.played_games, so a file called "(game 3)"
@@ -236,7 +245,7 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
         rc = render_mod.run(
             video, part, target, render_workers,
             outdir=os.path.join(workdir, f"parts-game{number}"),
-            progress=log, keep_parts=keep_parts)
+            progress=log, keep_parts=keep_parts, cover=cover)
         if rc:
             failed.append(number)
         else:

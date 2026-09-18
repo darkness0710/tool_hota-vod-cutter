@@ -11,6 +11,7 @@ The Vietnamese also stays inline in the markup below, next to its data-t key,
 so the page reads correctly before the script runs and if it never runs.
 """
 import json
+import re
 
 from . import i18n
 
@@ -93,7 +94,21 @@ _HTML = r"""<!doctype html>
   .when b { color: var(--ink); font-weight: 600; }
   .meta { color: var(--dim); font-size: 13px; }
   .meta b { color: var(--ink); font-weight: 600; }
-  .note { margin-top: 6px; font-size: 13px; }
+  /* A measure and a line height, because these notes are prose, not labels.
+     Run full width on a wide window they came out as five unbroken lines of
+     small text, which is read as a wall and skipped. 78ch keeps a line near
+     the length an eye tracks without losing its place. */
+  .note { margin-top: 6px; font-size: 13px; line-height: 1.6;
+          max-width: 78ch; }
+  /* A note that carries more than one fact is a LIST, not a paragraph with
+     breaks in it. Three facts run together read as one wall and get skipped;
+     bulleted, each is a thing the eye can land on and leave. The bullet also
+     does the work <br><br> could not: it survives the line height, and it
+     says where one fact ends without needing a blank line to show it. */
+  .note ul, .foot ul { margin: 6px 0 0; padding-left: 18px; }
+  .note li, .foot li { margin: 0 0 5px; }
+  .note li:last-child, .foot li:last-child { margin-bottom: 0; }
+  .note li::marker, .foot li::marker { color: var(--line); }
   .note.warn { color: var(--warn); }
   .note.bad { color: var(--bad); }
   .kv { display: grid; grid-template-columns: 120px 1fr; gap: 2px 10px;
@@ -212,7 +227,8 @@ _HTML = r"""<!doctype html>
   .kv dd a.mail { color: var(--accent); text-decoration: none; }
   .kv dd a.mail:hover { text-decoration: underline; }
   .foot { color: var(--dim); font-size: 12px; margin-top: 26px;
-          border-top: 1px solid var(--line); padding-top: 12px; }
+          border-top: 1px solid var(--line); padding-top: 12px;
+          line-height: 1.6; max-width: 78ch; }
 </style>
 </head>
 <body>
@@ -272,6 +288,7 @@ _HTML = r"""<!doctype html>
   <div class="tabs">
     <button class="tab on" data-tab="fn" data-t="tab.fn">Chức năng</button>
     <button class="tab" data-tab="trim" data-t="tab.trim">Hỗ trợ cắt ghép</button>
+    <button class="tab" data-tab="qr" data-t="tab.qr">Xoá QR code</button>
     <button class="tab" data-tab="author" data-t="tab.author">Tác giả</button>
   </div>
 
@@ -343,10 +360,11 @@ _HTML = r"""<!doctype html>
   <div id="tab-trim" hidden>
   <h2 data-t="h2.trim">Cắt một đoạn ra file riêng</h2>
   <div class="card">
-    <div class="note" data-th="trim.intro">Chọn video đang có trong
-      <code class="p-in">input\</code>, tua tới chỗ cần rồi bấm
-      <b>Đặt tại đây</b>. Đoạn cắt ra nằm cùng thư mục đó, chạy được ngay ở tab
-      <b>Chức năng</b> &mdash; để thử thuật toán trên 15 phút thay vì 4 tiếng.</div>
+    <div class="note" data-th="trim.intro">Chọn video trong
+      <code class="p-in">input\</code> hoặc <code class="p-out">output\</code>,
+      tua tới chỗ cần rồi bấm <b>Đặt tại đây</b>. Đoạn cắt ra nằm cùng thư mục
+      với bản gốc, chạy được ngay ở tab <b>Chức năng</b> &mdash; để thử thuật
+      toán trên 15 phút thay vì 4 tiếng.</div>
     <div class="row">
       <select id="tsrc"></select>
       <button class="small" id="tload" data-t="btn.preview"
@@ -369,12 +387,44 @@ _HTML = r"""<!doctype html>
       <span class="n" id="tinfo"></span>
     </div>
     <div class="note" id="tmsg"></div>
-    <div class="note" data-t="trim.note">Cắt bằng cách copy nguyên luồng, không encode lại: 90 phút
-      xong trong vài giây và hình y hệt bản gốc. Đổi lại điểm đầu bám vào
-      keyframe gần nhất phía trước, nên đoạn ra có thể dài hơn yêu cầu vài
-      giây &mdash; với việc cắt nhỏ để chạy thử thì không ảnh hưởng gì.</div>
+    <div class="note" data-th="trim.note"><ul>
+      <li>Copy nguyên luồng, không encode lại: 90 phút xong trong vài giây, và
+        hình y hệt bản gốc.</li>
+      <li>Đổi lại điểm đầu bám vào keyframe gần nhất phía trước, nên đoạn ra
+        có thể dài hơn yêu cầu vài giây &mdash; cắt nhỏ để chạy thử thì không
+        ảnh hưởng gì.</li></ul></div>
   </div>
   </div><!-- /tab-trim -->
+
+  <div id="tab-qr" hidden>
+  <h2 data-t="h2.qr">Xoá QR code khỏi video</h2>
+  <div class="card">
+    <div class="note" data-th="qr.intro"><ul>
+      <li>Chọn video trong <code class="p-in">input\</code> hoặc
+        <code class="p-out">output\</code>, rồi bấm <b>Xoá QR</b>.</li>
+      <li>File mới nằm cùng thư mục với bản gốc, tên thêm
+        <code>[remove-qr]</code> ở đầu.</li>
+      <li>Bản gốc không bị đụng vào.</li></ul></div>
+    <div class="row">
+      <select id="qsrc"></select>
+      <button class="small" id="qload" data-t="btn.preview"
+        data-tt="tip.preview" title="Nạp video này vào khung xem">Xem</button>
+    </div>
+    <video id="qvid" class="prev" controls preload="metadata"></video>
+    <div class="marks act">
+      <button class="go" id="qgo" data-t="btn.removeQr">Xoá QR</button>
+      <span class="n" id="qinfo"></span>
+    </div>
+    <div class="note" id="qmsg"></div>
+    <div class="note" data-th="qr.note"><ul>
+      <li>Mã QR đứng yên suốt cả stream, nên nó chỉ được dò một lần rồi phủ
+        ảnh lên toàn bộ video.</li>
+      <li>Việc này encode lại cả file nên lâu ngang một lần cắt — theo dõi ở
+        tab <b>Chức năng</b>, mục <b>Công việc</b>.</li>
+      <li>Không dò ra thì vẫn phủ vào đúng góc đó với viền rộng hơn, và báo rõ
+        trong log.</li></ul></div>
+  </div>
+  </div><!-- /tab-qr -->
 
   <div id="tab-author" hidden>
   <h2 data-t="h2.author">Tác giả</h2>
@@ -409,11 +459,12 @@ _HTML = r"""<!doctype html>
     </div>
   </div>
 
-  <div class="foot" data-t="foot">
-    Việc chỉ chạy khi cửa sổ đen (server) còn mở — đóng nó là mọi việc đang chạy
-    bị dừng theo, kể cả ffmpeg. File tải dở vẫn resume được ở lượt sau. Trang
-    này không thấy được việc chạy từ Start.cmd.
-  </div>
+  <div class="foot" data-th="foot"><ul>
+    <li>Việc chỉ chạy khi cửa sổ đen (server) còn mở — đóng nó là mọi việc
+      đang chạy bị dừng theo, kể cả ffmpeg.</li>
+    <li>File tải dở vẫn resume được ở lượt sau.</li>
+    <li>Trang này không thấy được việc chạy từ Start.cmd.</li>
+  </ul></div>
 </div>
 
 <script>
@@ -439,6 +490,28 @@ function stamp(t, timeOnly) {
 }
 // "bắt đầu <khi nào> · xong <khi nào> · <bao lâu>", với ngày chỉ nhắc lại khi
 // việc chạy vắt qua nửa đêm.
+// Which of our folders this job's result is sitting in.
+//
+// Three sources, most reliable first. j.where is the job saying so outright.
+// Failing that the output PATH, which is the only thing that knows for a
+// record written before jobs carried a folder -- and those records are the
+// reason this is not just a mode lookup: a QR scrub writes beside its source,
+// so it lands in input/ as readily as output/, and guessing "output" because
+// a file was produced sent Explorer to the wrong folder. Mode is the last
+// resort, for a job that has not produced anything yet.
+function jobFolder(j) {
+  if (j.where) return j.where;
+  const SEP = String.fromCharCode(92);
+  const low = String(j.output || "").toLowerCase();
+  if (low) {
+    for (const w of ["input", "output", "work"])
+      if (low.indexOf(SEP + w + SEP) >= 0) return w;
+  }
+  if (j.mode === "download") return "input";
+  if (j.output) return "output";
+  return j.mode === "parts" ? "work" : "";
+}
+
 function whenLine(j, now) {
   if (!j.started) return "";
   const sameDay = j.finished &&
@@ -541,6 +614,7 @@ for (const b of document.querySelectorAll(".tabs button")) {
       document.getElementById("tab-" + other.dataset.tab).hidden =
         other !== b;
     if (b.dataset.tab === "trim") trimSources(LAST);
+    if (b.dataset.tab === "qr") qrSources(LAST);
   };
 }
 
@@ -613,6 +687,20 @@ function note(text, bad) {
   el.textContent = text;
 }
 
+// Every Explorer button goes through here. They used to be `void post(...)`,
+// which discards the reply: when the server answered "không còn file đó" the
+// click simply did nothing at all, with no way to tell a failure from a
+// window that opened behind the browser. Opening a folder is not important
+// enough to interrupt, but it is important enough to admit when it did not.
+async function reveal(where, file) {
+  const { ok, data } = await post("/api/reveal", { where: where, file: file });
+  // This endpoint reports a refusal as {opened:false, message}, not {error},
+  // so read both: the server's own wording ("không còn file đó") says more
+  // than any generic line here can.
+  if (!ok || data.opened === false)
+    note(data.error || data.message || T("reveal.failed"), true);
+}
+
 async function startJob(payload) {
   const btn = document.getElementById("start");
   btn.disabled = true;
@@ -644,9 +732,7 @@ function jobCard(j, now) {
           'title="Copy toàn bộ log + thông tin việc này vào clipboard">Copy log</button>';
   // Where the result of this job landed: output\ for a finished video,
   // work\ for the loose pieces.
-  const home = j.mode === "download" ? "input"
-             : j.output ? "output"
-             : (j.mode === "parts" ? "work" : "");
+  const home = jobFolder(j);
   if (home && !active)
     html += '<button class="small" data-openjob="' + j.id + '" ' +
             'data-where="' + home + '" title="Mở thư mục chứa kết quả">Mở thư mục</button>';
@@ -753,6 +839,7 @@ async function refresh() {
   }
 
   if (!document.getElementById("tab-trim").hidden) trimSources(s);
+  if (!document.getElementById("tab-qr").hidden) qrSources(s);
 
   const jobs = document.getElementById("jobs");
   jobs.innerHTML = s.jobs.length
@@ -769,12 +856,12 @@ document.addEventListener("click", async e => {
     const job = ((LAST && LAST.jobs) || []).find(j => j.id === oj.dataset.openjob) || {};
     const SEP = String.fromCharCode(92);
     const leaf = job.output ? job.output.split(SEP).pop() : null;
-    return void post("/api/reveal", { where: oj.dataset.where, file: leaf });
+    return void reveal(oj.dataset.where, leaf);
   }
   const open = e.target.closest("[data-open]");
-  if (open) return void post("/api/reveal", { where: open.dataset.open });
+  if (open) return void reveal(open.dataset.open);
   const show = e.target.closest("[data-show]");
-  if (show) return void post("/api/reveal", { where: "input", file: show.dataset.show });
+  if (show) return void reveal("input", show.dataset.show);
   const ct = e.target.closest("[data-copy-text]");
   if (ct) {
     const was = ct.textContent;
@@ -895,19 +982,40 @@ function tnote(text, bad) {
   el.textContent = text;
 }
 
+// Every video in either folder, named "<folder>/<file>".
+//
+// The folder is part of the VALUE, not decoration on the label: the same
+// basename can exist in both -- output/ is full of files cut from input/, and
+// a trimmed sample of a cut lands beside the cut -- so a bare name is
+// ambiguous the moment both folders are offered. The server resolves the same
+// two tokens back, and takes a bare name as input/ so nothing older breaks.
+function folderRefs(s) {
+  const out = [];
+  for (const pair of [["input", (s && s.inputs) || []],
+                      ["output", (s && s.outputs) || []]])
+    for (const f of pair[1]) out.push(pair[0] + "/" + f.name);
+  return out;
+}
+
 // Rebuilt only when the file list actually changes, so the poll every second
 // does not throw away what the reader picked.
-function trimSources(s) {
-  const sel = document.getElementById("tsrc");
-  const names = ((s && s.inputs) || []).map(f => f.name);
-  const sig = names.join("|");
+function fillSources(sel, refs, empty) {
+  const sig = refs.join("|");
   if (sel.dataset.sig === sig) return;
   sel.dataset.sig = sig;
   const had = sel.value;
-  sel.innerHTML = names.length
-    ? names.map(n => '<option value="' + esc(n) + '">' + esc(n) + "</option>").join("")
-    : '<option value="">chưa có video nào trong thư mục input</option>';
-  if (names.indexOf(had) >= 0) sel.value = had;
+  sel.innerHTML = refs.length
+    ? refs.map(r => '<option value="' + esc(r) + '">' + esc(r) + "</option>").join("")
+    : '<option value="">' + esc(empty) + "</option>";
+  if (refs.indexOf(had) >= 0) sel.value = had;
+}
+
+function trimSources(s) {
+  fillSources(document.getElementById("tsrc"), folderRefs(s), T("trim.noVideo"));
+}
+
+function qrSources(s) {
+  fillSources(document.getElementById("qsrc"), folderRefs(s), T("trim.noVideo"));
 }
 
 function tload() {
@@ -964,7 +1072,7 @@ document.getElementById("tcut").onclick = async () => {
     return tnote("Mốc thời gian không hợp lệ.", true);
   if (!ask("Cắt đoạn này ra thành file mới?", "", name, "",
            clock(a) + " → " + clock(b) + "   (dài " + clock(b - a) + ")", "",
-           "File mới nằm trong thư mục input, không sửa gì vào bản gốc."))
+           T("trim.sameFolder")))
     return;
   const btn = document.getElementById("tcut");
   btn.disabled = true;
@@ -975,6 +1083,54 @@ document.getElementById("tcut").onclick = async () => {
   tnote("Đã cắt: " + data.name + "   " + size(data.bytes)
         + "   dài thật " + clock(data.length)
         + (data.length - (b - a) > 1.5 ? "  (dài hơn yêu cầu do bám keyframe)" : ""));
+  refresh();
+};
+
+// --------------------------------------------------------------- remove QR ---
+// Its own preview and one button. Deliberately no marks: this is the whole
+// file or nothing, because the QR is on screen for the whole file.
+const qvid = document.getElementById("qvid");
+
+function qnote(text, bad) {
+  const el = document.getElementById("qmsg");
+  el.className = bad ? "note bad" : "note";
+  el.textContent = text;
+}
+
+function qload() {
+  const ref = document.getElementById("qsrc").value;
+  if (!ref) return qnote(T("trim.pickFirst"), true);
+  qvid.src = "/media?name=" + encodeURIComponent(ref);
+  qvid.load();
+  qnote("");
+}
+
+document.getElementById("qload").onclick = qload;
+document.getElementById("qsrc").onchange = () => {
+  document.getElementById("qinfo").textContent = "";
+  qload();
+};
+qvid.addEventListener("loadedmetadata", () => {
+  document.getElementById("qinfo").textContent = "dài " + clock(qvid.duration);
+});
+qvid.addEventListener("error", () => qnote(T("trim.cantPlay"), true));
+
+document.getElementById("qgo").onclick = async () => {
+  const ref = document.getElementById("qsrc").value;
+  if (!ref) return qnote(T("trim.noSource"), true);
+  const slash = ref.indexOf("/");
+  const where = ref.slice(0, slash), name = ref.slice(slash + 1);
+  if (!ask(T("qr.askTitle"), "", ref, "",
+           T("qr.askOut") + "  " + where + "\[remove-qr] " + name, "",
+           T("qr.askNote")))
+    return;
+  const btn = document.getElementById("qgo");
+  btn.disabled = true;
+  qnote(T("qr.starting"));
+  const { ok, data } = await post("/api/remove-qr", { name: ref });
+  btn.disabled = false;
+  if (!ok) return qnote(data.error || T("qr.failed"), true);
+  qnote(data.message || T("qr.started"));
   refresh();
 };
 
@@ -1091,3 +1247,32 @@ PAGE = (_HTML
                  json.dumps(i18n.STRINGS, ensure_ascii=False))
         .replace('/*__LANG__*/"vi"', json.dumps(i18n.DEFAULT)))
 assert "__I18N__" not in PAGE and "__LANG__" not in PAGE
+
+
+def _check_markup():
+    """A string carrying markup must be bound with data-th, never data-t.
+
+    applyLang() assigns data-t through textContent and data-th through
+    innerHTML, so a string with <b> or <code> in it bound the first way is
+    shown to the reader as literal angle brackets. Nothing else catches that:
+    it is valid HTML, valid Python and valid JavaScript, and the page renders
+    -- wrongly -- rather than failing. It shipped exactly once, on qr.note.
+
+    Checked against BOTH languages: a key can be plain in one and carry markup
+    in the other, and the mistake would then only appear after a language
+    switch.
+    """
+    wrong = []
+    for key in set().union(*(set(d) for d in i18n.STRINGS.values())):
+        if f'data-t="{key}"' not in _HTML:
+            continue
+        for lang, table in i18n.STRINGS.items():
+            if re.search(r"<[a-zA-Z/]", table.get(key, "")):
+                wrong.append(f"{key} ({lang})")
+    if wrong:
+        raise ValueError(
+            "these strings carry markup but are bound with data-t, which "
+            f"shows the tags as text -- use data-th: {sorted(wrong)}")
+
+
+_check_markup()

@@ -23,7 +23,7 @@ from .ffmpeg import FF
 
 
 def _one(job):
-    video, i, a, b, is_last, outdir, codec, qflag = job
+    video, i, a, b, is_last, outdir, codec, qflag, cover = job
     dur = b - a
     out = os.path.join(outdir, f"seg{i:04d}.mp4")
     fade_out_at = max(0.0, dur - C.FADE)
@@ -34,21 +34,48 @@ def _one(job):
     if not is_last:
         vf += f",tpad=stop_mode=add:stop_duration={C.BLACK}:color=black"
         af += f",apad=pad_dur={C.BLACK}"
+    cmd = [FF, "-v", "error", "-ss", f"{a:.3f}", "-t", f"{dur:.3f}",
+           "-i", video]
+    if cover is None:
+        cmd += ["-vf", vf, "-af", af]
+    else:
+        # The cover rides in the encode each segment already does, so it costs
+        # no extra decode pass -- one composite per frame against a re-encode
+        # that was happening anyway.
+        path, cx, cy, cw, chh = cover
+        cmd += ["-i", str(path)]
+        # force_original_aspect_ratio=increase + crop is a FILL, not a fit: the
+        # logo is square and the card is not, and a fit would letterbox the
+        # difference, leaving strips of the QR showing along two edges. Filling
+        # crops the logo instead, which costs a band off the top and bottom of
+        # a graphic nobody reads closely.
+        #
+        # eof_action=repeat because the overlay input is a still: it delivers
+        # one frame and ends, and the default would drop the cover from the
+        # second frame onward. Left implicit this is the failure that renders
+        # a single covered frame and then hours of exposed QR.
+        cmd += ["-filter_complex",
+                f"[1:v]scale={cw}:{chh}:force_original_aspect_ratio=increase,"
+                f"crop={cw}:{chh}[cov];"
+                f"[0:v][cov]overlay={cx}:{cy}:eof_action=repeat[ov];"
+                f"[ov]{vf},format=yuv420p[v];"
+                f"[0:a]{af}[aout]",
+                "-map", "[v]", "-map", "[aout]"]
     # -r/-fps_mode are not optional: h264_qsv refuses to open when the frame
     # rate is not constant, and the filter chain leaves it unset.
-    rc = subprocess.call(
-        [FF, "-v", "error", "-ss", f"{a:.3f}", "-t", f"{dur:.3f}", "-i", video,
-         "-vf", vf, "-af", af, "-c:v", codec]
-        + encoder.quality_args(qflag)
-        + ["-r", "60", "-fps_mode", "cfr",
-           "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-y", out],
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    cmd += ["-c:v", codec] + encoder.quality_args(qflag) + [
+        "-r", "60", "-fps_mode", "cfr",
+        "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-y", out]
+    rc = subprocess.call(cmd, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.STDOUT)
     return i, rc
 
 
 def run(video, segments, out, workers=3, outdir="parts", progress=print,
-        keep_parts=False, parts_only=False):
+        keep_parts=False, parts_only=False, cover=None):
     """Render `segments` of `video` into `out`. Returns an exit code.
+
+    `cover` is (image, x, y, w, h) painted over every frame, or None.
 
     `parts_only` stops once the pieces are written, without concatenating
     them. When the question is what the detector decided, the pieces ARE the
@@ -57,7 +84,8 @@ def run(video, segments, out, workers=3, outdir="parts", progress=print,
     """
     os.makedirs(outdir, exist_ok=True)
     codec, qflag = encoder.detect(log=progress)
-    jobs = [(video, i, a, b, i == len(segments) - 1, outdir, codec, qflag)
+    jobs = [(video, i, a, b, i == len(segments) - 1, outdir, codec, qflag,
+             cover)
             for i, (a, b) in enumerate(segments)]
 
     done, started, failed = 0, time.time(), []

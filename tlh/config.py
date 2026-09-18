@@ -271,6 +271,45 @@ MIN_GAP = 10.0      # minimum gap AFTER padding. MIN_CUT is applied before the
                     # count: borderline gaps no longer flip in and out on
                     # sub-second sampling differences.
 
+# --------------------------------------------------------------- QR cover ----
+# The stream carries a VietQR bank-transfer code for donations, burned into the
+# corner by OBS. These cuts get republished, so it is painted over with the
+# channel logo. See tlh/qrcover.py for why it is found once rather than tracked
+# per frame.
+QR_COVER = ROOT / "assets" / "qr-cover.png"   # painted over the code
+QR_PREFIX = "[remove-qr] "
+                    # what a scrubbed copy is called. A PREFIX, so the
+                    # scrubbed file sorts next to nothing and is
+                    # impossible to mistake for the original in a file
+                    # listing -- which matters, because the two differ
+                    # in one 150x162 rectangle and nowhere else.
+QR_SAMPLES = 24     # frames tried before giving up and covering blind. The
+                    # detector found the code on 9 of 20 frames where it was
+                    # provably present, so ~45% a frame: at 24 tries, missing
+                    # every one is about one chance in ten million.
+QR_CARD = (1778, 446, 142, 138)               # x, y, w, h -- measured card
+                    # The card is the code's own white quiet zone and nothing
+                    # more: it sits directly on the Heroes sidebar, with no
+                    # wider panel behind it. Worth stating because the sidebar
+                    # has bright gold trim of its own a few pixels to the left,
+                    # at x=1716, which reads as 100% white and is NOT part of
+                    # the card -- the dark gap between them, x 1724..1772, is
+                    # what tells them apart.
+QR_CARD_WHITE = 0.35
+                    # fraction of a row (or column) that must be white for it
+                    # to be card rather than background. Profiled across the
+                    # code's own span, the three populations are far apart:
+                    # card 100%, the code itself ~50% because half a QR is
+                    # black, the sidebar behind it 0-10%. 0.35 sits between the
+                    # code and the sidebar, which is what matters -- the run
+                    # has to include the code to grow out of it.
+QR_BUFFER = 1.15    # grow the card found in the video by this before covering
+QR_BUFFER_BLIND = 1.40
+                    # and by THIS when no frame decoded, so the blind cover
+                    # errs outward. A cover larger than it needs to be costs a
+                    # little more of the sidebar; one smaller than it needs to
+                    # be publishes a bank account.
+
 # ---------------------------------------------------------------- render ----
 FADE = 0.3          # fade out / fade in duration, video and audio
 BLACK = 0.4         # black hold between segments

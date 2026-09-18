@@ -103,13 +103,42 @@ VI = {
     "job.took": "mất",
     "job.stale": "Không có dữ liệu mới",
 
+    # ---- remove QR tab
+    "tab.qr": "Xoá QR code",
+    "h2.qr": "Xoá QR code khỏi video",
+    "qr.intro": "<ul><li>Chọn video trong "
+                '<code class="p-in">input\\</code> hoặc '
+                '<code class="p-out">output\\</code>, rồi bấm '
+                "<b>Xoá QR</b>.</li>"
+                "<li>File mới nằm cùng thư mục với bản gốc, tên thêm "
+                "<code>[remove-qr]</code> ở đầu.</li>"
+                "<li>Bản gốc không bị đụng vào.</li></ul>",
+    "btn.removeQr": "Xoá QR",
+    "qr.note": "<ul><li>Mã QR đứng yên suốt cả stream, nên nó chỉ được dò "
+               "một lần rồi phủ ảnh lên toàn bộ video.</li>"
+               "<li>Việc này encode lại cả file nên lâu ngang một lần cắt — "
+               "theo dõi ở tab <b>Chức năng</b>, mục <b>Công việc</b>.</li>"
+               "<li>Không dò ra thì vẫn phủ vào đúng góc đó với viền rộng "
+               "hơn, và báo rõ trong log.</li></ul>",
+    "reveal.failed": "không mở được thư mục",
+    "qr.askTitle": "Xoá QR code khỏi video này?",
+    "qr.askOut": "File mới:",
+    "qr.askNote": "Phải encode lại cả file, lâu ngang một lần cắt. "
+                  "Bản gốc không bị sửa.",
+    "qr.starting": "đang bắt đầu…",
+    "qr.started": "đã bắt đầu, xem tiến độ ở mục Công việc",
+    "qr.failed": "không xoá được",
+
     # ---- trim tab
     "h2.trim": "Cắt một đoạn ra file riêng",
-    "trim.intro": "Chọn video đang có trong "
-                  '<code class="p-in">input\\</code>, tua tới chỗ cần rồi bấm '
-                  "<b>Đặt tại đây</b>. Đoạn cắt ra nằm cùng thư mục đó, chạy "
-                  "được ngay ở tab <b>Chức năng</b> — để thử thuật toán trên "
-                  "15 phút thay vì 4 tiếng.",
+    "trim.intro": "Chọn video trong "
+                  '<code class="p-in">input\\</code> hoặc '
+                  '<code class="p-out">output\\</code>, tua tới chỗ cần rồi '
+                  "bấm <b>Đặt tại đây</b>. Đoạn cắt ra nằm cùng thư mục với "
+                  "bản gốc, chạy được ngay ở tab <b>Chức năng</b> — để thử "
+                  "thuật toán trên 15 phút thay vì 4 tiếng.",
+    "trim.sameFolder": "File mới nằm cùng thư mục với bản gốc, "
+                       "không sửa gì vào bản gốc.",
     "btn.preview": "Xem",
     "tip.preview": "Nạp video này vào khung xem",
     "lbl.start": "Điểm đầu",
@@ -117,12 +146,12 @@ VI = {
     "btn.setHere": "Đặt tại đây",
     "btn.goto": "Tới",
     "btn.cut": "Cắt đoạn này ra",
-    "trim.note": "Cắt bằng cách copy nguyên luồng, không encode lại: 90 phút "
-                 "xong trong vài giây và hình y hệt bản gốc. Đổi lại điểm đầu "
-                 "bám vào keyframe gần nhất phía trước, nên đoạn ra có thể dài "
-                 "hơn yêu cầu vài giây — với việc cắt nhỏ để chạy thử thì "
-                 "không ảnh hưởng gì.",
-    "trim.noVideo": "chưa có video nào trong thư mục input",
+    "trim.note": "<ul><li>Copy nguyên luồng, không encode lại: 90 phút xong "
+                 "trong vài giây, và hình y hệt bản gốc.</li>"
+                 "<li>Đổi lại điểm đầu bám vào keyframe gần nhất phía trước, "
+                 "nên đoạn ra có thể dài hơn yêu cầu vài giây — cắt nhỏ để "
+                 "chạy thử thì không ảnh hưởng gì.</li></ul>",
+    "trim.noVideo": "chưa có video nào trong input hay output",
     "trim.pickFirst": "Chưa có video nào để xem.",
     "trim.noSource": "Chưa chọn video.",
     "trim.badMarks": "Mốc thời gian không hợp lệ.",
@@ -180,9 +209,10 @@ VI = {
     "tip.copyEmail": "Copy email vào clipboard",
 
     # ---- foot
-    "foot": "Việc chỉ chạy khi cửa sổ đen (server) còn mở — đóng nó là mọi việc "
-            "đang chạy bị dừng theo, kể cả ffmpeg. File tải dở vẫn resume được "
-            "ở lượt sau. Trang này không thấy được việc chạy từ Start.cmd.",
+    "foot": "<ul><li>Việc chỉ chạy khi cửa sổ đen (server) còn mở — đóng nó "
+            "là mọi việc đang chạy bị dừng theo, kể cả ffmpeg.</li>"
+            "<li>File tải dở vẫn resume được ở lượt sau.</li>"
+            "<li>Trang này không thấy được việc chạy từ Start.cmd.</li></ul>",
 }
 
 EN = {
@@ -269,12 +299,43 @@ EN = {
     "job.took": "took",
     "job.stale": "No new data",
 
+    # ---- remove QR tab
+    "tab.qr": "Remove QR code",
+    "h2.qr": "Remove the QR code from a video",
+    "qr.intro": "<ul><li>Pick a video in "
+                '<code class="p-in">input\\</code> or '
+                '<code class="p-out">output\\</code>, then press '
+                "<b>Remove QR</b>.</li>"
+                "<li>The new file lands in the same folder as its source, "
+                "with <code>[remove-qr]</code> in front of its name.</li>"
+                "<li>The original is left alone.</li></ul>",
+    "btn.removeQr": "Remove QR",
+    "qr.note": "<ul><li>The QR sits in one place for the whole stream, so "
+               "it is found once and painted over the whole video.</li>"
+               "<li>That re-encodes the file, so it takes about as long as a "
+               "cut — watch it under <b>Jobs</b> on the <b>Features</b> "
+               "tab.</li>"
+               "<li>If it is not found, the usual corner is covered anyway "
+               "with a wider margin, and the log says so.</li></ul>",
+    "reveal.failed": "could not open that folder",
+    "qr.askTitle": "Remove the QR code from this video?",
+    "qr.askOut": "New file:",
+    "qr.askNote": "This re-encodes the whole file, about as long as a cut. "
+                  "The original is left alone.",
+    "qr.starting": "starting…",
+    "qr.started": "started; watch it under Jobs",
+    "qr.failed": "could not remove it",
+
     "h2.trim": "Cut a range out into its own file",
-    "trim.intro": "Pick a video already in "
-                  '<code class="p-in">input\\</code>, seek to the moment and '
-                  "press <b>Set here</b>. The clip lands in the same folder and "
-                  "can be run straight from the <b>Main</b> tab — to try the "
-                  "detector on fifteen minutes instead of four hours.",
+    "trim.intro": "Pick a video in "
+                  '<code class="p-in">input\\</code> or '
+                  '<code class="p-out">output\\</code>, seek to the moment '
+                  "and press <b>Set here</b>. The clip lands in the same "
+                  "folder as its source and can be run straight from the "
+                  "<b>Main</b> tab — to try the detector on fifteen "
+                  "minutes instead of four hours.",
+    "trim.sameFolder": "The new file lands in the same folder as its "
+                       "source. The original is left alone.",
     "btn.preview": "Preview",
     "tip.preview": "Load this video into the player",
     "lbl.start": "Start",
@@ -282,12 +343,13 @@ EN = {
     "btn.setHere": "Set here",
     "btn.goto": "Go",
     "btn.cut": "Cut this range out",
-    "trim.note": "Cut by copying the streams, with no re-encode: ninety minutes "
-                 "in a few seconds, and the original pixels. In exchange the "
-                 "start lands on the nearest keyframe before it, so a clip can "
-                 "run a few seconds longer than asked — which for cutting a "
-                 "test piece down does not matter.",
-    "trim.noVideo": "no video in the input folder yet",
+    "trim.note": "<ul><li>Copies the streams, no re-encode: ninety minutes "
+                 "in a few seconds, and the original pixels.</li>"
+                 "<li>In exchange the start lands on the nearest keyframe "
+                 "before it, so a clip can run a few seconds longer than "
+                 "asked — which for cutting a test piece down does not "
+                 "matter.</li></ul>",
+    "trim.noVideo": "no video in input or output yet",
     "trim.pickFirst": "There is no video to preview.",
     "trim.noSource": "No video chosen.",
     "trim.badMarks": "Those marks are not valid.",
@@ -342,10 +404,10 @@ EN = {
     "author.email": "Email",
     "tip.copyEmail": "Copy the email to the clipboard",
 
-    "foot": "Jobs only run while the black window (the server) is open — "
-            "closing it stops everything running, ffmpeg included. A part-"
-            "downloaded file still resumes next time. This page cannot see "
-            "runs started from Start.cmd.",
+    "foot": "<ul><li>Jobs only run while the black window (the server) is "
+            "open — closing it stops everything running, ffmpeg included.</li>"
+            "<li>A part-downloaded file still resumes next time.</li>"
+            "<li>This page cannot see runs started from Start.cmd.</li></ul>",
 }
 
 STRINGS = {"vi": VI, "en": EN}

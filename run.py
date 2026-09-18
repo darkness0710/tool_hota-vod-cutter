@@ -86,6 +86,12 @@ def main():
                     help="redraw one download progress line instead of many")
     ap.add_argument("--keep-parts", action="store_true",
                     help="do not delete work/<name>/parts after concatenating")
+    # A whole path, not a name in input/: the page offers output/ too, and
+    # resolving the folder here as well as there would be two places to keep
+    # in step. The caller has already decided which file it means.
+    ap.add_argument("--remove-qr", metavar="PATH",
+                    help="paint over the donation QR in ONE video and exit; "
+                         "writes '[remove-qr] <name>' beside the original")
     args = ap.parse_args()
     # These runs take tens of minutes; a block-buffered stdout would show
     # nothing at all until the process exits. UTF-8 because VOD titles are
@@ -95,6 +101,35 @@ def main():
     # stderr too: yt-dlp's warnings quote the title, so a redirected run died
     # on the same UnicodeEncodeError from the other stream.
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+    if args.remove_qr:
+        # Its own mode, ahead of every check below: this touches one named
+        # file and never reads input/, so an empty or missing input/ is not a
+        # reason to refuse it.
+        from tlh import qrcover
+        src = os.path.abspath(args.remove_qr)
+        if not os.path.isfile(src):
+            print(f"no such file: {src}")
+            return 1
+        folder, name = os.path.split(src)
+        dst = os.path.join(folder, C.QR_PREFIX + name)
+        if os.path.abspath(dst) == src:
+            print("refusing to overwrite the original")
+            return 1
+        # Qualified by folder, because web.py's "file" pattern reads this
+        # line back into the job record, and the job list is the one place
+        # where input/x.mp4 and output/x.mp4 have to stay apart.
+        where = os.path.basename(folder)
+        print(f"    file      {where}/{name}")
+        print(f"    output    {where}/{C.QR_PREFIX + name}")
+        code = qrcover.scrub(src, dst)
+        if code:
+            print(f"ffmpeg failed (rc={code})")
+            if os.path.isfile(dst):
+                os.remove(dst)          # a half file looks like a finished one
+            return 1
+        print(f"  done  {dst}   {os.path.getsize(dst) / 2 ** 30:.2f} GiB")
+        return 0
 
     if not os.path.isdir(args.input):
         print(f"input folder not found: {args.input}")

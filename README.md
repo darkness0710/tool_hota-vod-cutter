@@ -121,11 +121,14 @@ tlh/
   signal.py             pass 1: clocks, seat, day counter, Spell Points panels
   daycount.py           reads "Month: M, Week: W, Day: D"
   screens.py            pass 2/3: dead-screen templates, map-vs-combat test
+  qrcover.py            finds the donation QR once, for render.py to paint over
   segments.py           the keep/cut rule
   timeline.py           chapters
-  render.py             fades, black holds, encode, concat
+  render.py             fades, black holds, QR cover, encode, concat
   process.py            runs the above for one video
 templates/              reference crops, needed at runtime -- do not delete
+assets/
+  qr-cover.png          painted over the donation QR; swap it to change the art
 tools/
   make_templates.py     rebuild the templates from a VOD
   inspect_frames.py     probe / coordinate grid / contact sheet / zoom / clocks
