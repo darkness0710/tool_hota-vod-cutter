@@ -136,8 +136,13 @@ _HTML = r"""<!doctype html>
            font-size: 13px; margin-top: 2px; }
   .opt em { font-style: normal; color: var(--dim); font-weight: 400;
             font-size: 12px; }
+  /* Baseline, for the reason .kv needs it: the dd carries a button whose
+     padding makes the row taller than the label beside it, and the grid
+     default of stretch then pins the label to the top of that row while the
+     value sits lower. Same defect, second grid -- fixing one and not the
+     other is how it came back. */
   .paths { display: grid; grid-template-columns: max-content 1fr;
-           gap: 4px 14px; font-size: 12px; }
+           gap: 4px 14px; align-items: baseline; font-size: 12px; }
   .paths dt { color: var(--dim); }
   .paths dd { margin: 0; font-family: ui-monospace, Consolas, monospace;
               overflow-wrap: anywhere; }
@@ -243,6 +248,44 @@ _HTML = r"""<!doctype html>
   #tab-trim .row, #tab-qr .row { margin-top: 14px; }
   .kv dd a.mail { color: var(--accent); text-decoration: none; }
   .kv dd a.mail:hover { text-decoration: underline; }
+  /* ONE grid for every release, not a block per release. The version labels
+     have to line up down a column and the notes beside them have to start on
+     the same x, and only a shared grid does that -- a block per release aligns
+     within itself and never across, which is how the folder rows came out
+     ragged.
+     align-items: start, NOT baseline, and that is the whole trick here. The
+     separator between releases is a border-top on both items of a row, so the
+     two halves of that line have to begin at the same y. Baseline aligns the
+     TEXT and lets the boxes start wherever they must to achieve it, which put
+     the two halves a couple of pixels apart and drew a visibly stepped rule.
+     start aligns the boxes, and a shared line-height then lines the text up
+     anyway. */
+  .rel { display: grid; grid-template-columns: max-content 1fr;
+         gap: 0; align-items: start; margin-top: 8px; font-size: 13px;
+         line-height: 1.6; }
+  .rel dt { white-space: nowrap; font-variant-numeric: tabular-nums;
+            padding-right: 18px; line-height: 1.6; }
+  .rel dt b { color: var(--ink); font-size: 16px; font-weight: 600; }
+  /* A quiet pill, not a filled one: it labels a row, it is not a control, and
+     at the weight of a button it would read as something to press. */
+  .rel dt .tag { display: inline-block; margin-left: 6px; padding: 1px 7px;
+                 border: 1px solid var(--accent); border-radius: 999px;
+                 color: var(--accent); font-size: 11px; vertical-align: 2px; }
+  .rel dd { margin: 0; color: var(--dim); }
+  .rel dd ul { margin: 0; padding-left: 18px; }
+  .rel dd li { margin: 0 0 5px; }
+  .rel dd li:last-child { margin-bottom: 0; }
+  .rel dd li::marker { color: var(--line); }
+  /* Each release is separated by a rule, because two stacked lists of bullets
+     do not say on their own where one version ends and the next begins.
+     The rule has to cross BOTH columns unbroken, which is why the grid has no
+     column gap: 18px of gap showed straight through the border as a notch in
+     the middle of the line. That spacing is padding on the dt instead, where
+     it cannot interrupt anything. */
+  .rel dt:not(:first-of-type), .rel dd:not(:first-of-type) {
+      border-top: 1px solid var(--line); padding-top: 14px; }
+  .rel dt, .rel dd { padding-bottom: 14px; }
+  .rel dt:last-of-type, .rel dd:last-of-type { padding-bottom: 0; }
   .foot { color: var(--dim); font-size: 12px; margin-top: 26px;
           border-top: 1px solid var(--line); padding-top: 12px;
           line-height: 1.6; }
@@ -306,6 +349,7 @@ _HTML = r"""<!doctype html>
     <button class="tab on" data-tab="fn" data-t="tab.fn">Chức năng</button>
     <button class="tab" data-tab="trim" data-t="tab.trim">Hỗ trợ cắt ghép</button>
     <button class="tab" data-tab="qr" data-t="tab.qr">Xoá QR code</button>
+    <button class="tab" data-tab="ver" data-t="tab.ver">Phiên bản</button>
     <button class="tab" data-tab="author" data-t="tab.author">Tác giả</button>
   </div>
 
@@ -445,6 +489,34 @@ _HTML = r"""<!doctype html>
   </div>
   </div><!-- /tab-qr -->
 
+  <div id="tab-ver" hidden>
+  <h2 data-t="h2.ver">Phiên bản</h2>
+  <div class="card">
+    <dl class="rel">
+      <dt><b>2.0</b> <span class="tag" data-t="ver.current">hiện tại</span></dt>
+      <dd data-th="ver.2.0.d"><ul>
+        <li>Sửa lỗi cắt ngược: đọc nhầm ghế nên giữ lượt đối thủ và cắt lượt
+          Tieulinh.</li>
+        <li>Không còn sót mẩu lượt đối thủ ở đầu và cuối mỗi lượt.</li>
+        <li>Thêm <b>Xoá QR code</b>: dò mã QR một lần rồi phủ logo kênh lên cả
+          video.</li>
+        <li>Hỗ trợ cắt ghép lấy video từ cả <code class="p-in">input\</code>
+          lẫn <code class="p-out">output\</code>.</li>
+        <li>Sửa nút <b>Mở thư mục</b> ở mục Công việc: mở sai chỗ và nuốt lỗi
+          im lặng.</li>
+      </ul></dd>
+      <dt><b>1.0</b></dt>
+      <dd data-th="ver.1.0.d"><ul>
+        <li>Tự cắt bỏ thời gian chờ lượt đối thủ, ghép lại có fade đen.</li>
+        <li>Tải VOD từ link YouTube.</li>
+        <li>Viết timeline chương theo ngày trong game, dán thẳng vào mô tả.</li>
+        <li>Tách riêng từng ván thành video rời.</li>
+        <li>Trang web theo dõi tiến độ, và tab hỗ trợ cắt thử một đoạn.</li>
+      </ul></dd>
+    </dl>
+  </div>
+  </div><!-- /tab-ver -->
+
   <div id="tab-author" hidden>
   <h2 data-t="h2.author">Tác giả</h2>
   <div class="card">
@@ -500,8 +572,26 @@ function size(n) {
                   : (n / (1024 * 1024)).toFixed(0) + " MiB";
 }
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
-function secs(n) { n = Math.round(n); const m = Math.floor(n / 60);
-  return m ? m + "p " + (n % 60) + "s" : n + "s"; }
+// How long something took, rounded, with the unit spelled out.
+//
+// This was called secs() -- the same name as the trim tab's timestamp PARSER
+// eight hundred lines further down. Two function declarations with one name in
+// one script scope: the later one wins, so every duration on a job card went
+// through the parser, which hands back whatever number it is given, and the
+// card read "mất 3.4437496662139893". It had done that since 1.0. The names
+// are now different jobs with different names.
+//
+// Units in words, not "3s": the number is read by someone deciding whether to
+// wait, and "45 giây" answers that where a bare figure makes them work out
+// what it is counting.
+function howLong(n) {
+  n = Math.max(0, Math.round(n));
+  if (n < 60) return n + " giây";
+  const m = Math.floor(n / 60), s = n % 60;
+  if (m < 60) return s ? m + " phút " + s + " giây" : m + " phút";
+  const h = Math.floor(m / 60), mm = m % 60;
+  return mm ? h + " giờ " + mm + " phút" : h + " giờ";
+}
 function pad(n) { return String(n).padStart(2, "0"); }
 function stamp(t, timeOnly) {
   if (!t) return "";
@@ -542,7 +632,7 @@ function whenLine(j, now) {
   const parts = ["Bắt đầu <b>" + stamp(j.started) + "</b>"];
   if (j.finished) parts.push("xong <b>" + stamp(j.finished, sameDay) + "</b>");
   parts.push((j.finished ? "mất " : "đã chạy ") +
-             "<b>" + secs((j.finished || now) - j.started) + "</b>");
+             "<b>" + howLong((j.finished || now) - j.started) + "</b>");
   return parts.join("   ·   ");
 }
 
@@ -684,7 +774,7 @@ function jobAsText(job, log) {
   const out = ["tieu_linh_hota job " + job.id];
   if (job.started) out.push("Bắt đầu: " + stamp(job.started));
   if (job.finished) out.push("Kết thúc: " + stamp(job.finished),
-                             "Mất: " + secs(job.finished - job.started));
+                             "Mất: " + howLong(job.finished - job.started));
   for (const [key, label] of COPY_FIELDS)
     if (job[key] !== undefined && job[key] !== null && job[key] !== "")
       out.push(label + ": " + job[key]);
@@ -771,7 +861,7 @@ function jobCard(j, now) {
   // prints once per piece is called stuck between every two pieces.
   const quiet = Math.max(20, (j.gap || 0) * 2.5);
   if (active && idle > quiet)
-    html += '<div class="note warn">Không có dữ liệu mới trong ' + secs(idle) + '.</div>';
+    html += '<div class="note warn">Không có dữ liệu mới trong ' + howLong(idle) + '.</div>';
   if (j.warning) html += '<div class="note warn">' + esc(j.warning) + '</div>';
   if (j.error) html += '<div class="note bad">' + esc(j.error) + '</div>';
 
@@ -978,7 +1068,9 @@ document.addEventListener("click", async e => {
 // line is better at that -- but to see the frame and take the time off it.
 const tvid = document.getElementById("tvid");
 
-// "1:02:03", "2:03", "90" and "1h02m03" all mean what they look like.
+// PARSES a typed timestamp into seconds -- the opposite direction from
+// howLong() above, which formats one. "1:02:03", "2:03", "90" and "1h02m03"
+// all mean what they look like.
 function secs(text) {
   const t = String(text == null ? "" : text).trim()
               .replace(/[hm]/g, ":").replace(/:+$/, "");

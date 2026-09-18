@@ -103,6 +103,34 @@ VI = {
     "job.took": "mất",
     "job.stale": "Không có dữ liệu mới",
 
+    # ---- version tab
+    "tab.ver": "Phiên bản",
+    "h2.ver": "Phiên bản",
+    "ver.current": "hiện tại",
+    "ver.2.0.d": "<ul>"
+                 "<li>Sửa lỗi cắt ngược: đọc nhầm ghế nên giữ lượt đối thủ và "
+                 "cắt lượt Tieulinh.</li>"
+                 "<li>Không còn sót mẩu lượt đối thủ ở đầu và cuối mỗi "
+                 "lượt.</li>"
+                 "<li>Thêm <b>Xoá QR code</b>: dò mã QR một lần rồi phủ logo "
+                 "kênh lên cả video.</li>"
+                 '<li>Hỗ trợ cắt ghép lấy video từ cả <code class="p-in">'
+                 "input\\</code> lẫn "
+                 '<code class="p-out">output\\</code>.</li>'
+                 "<li>Sửa nút <b>Mở thư mục</b> ở mục Công việc: mở sai chỗ và "
+                 "nuốt lỗi im lặng.</li>"
+                 "</ul>",
+    "ver.1.0.d": "<ul>"
+                 "<li>Tự cắt bỏ thời gian chờ lượt đối thủ, ghép lại có fade "
+                 "đen.</li>"
+                 "<li>Tải VOD từ link YouTube.</li>"
+                 "<li>Viết timeline chương theo ngày trong game, dán thẳng vào "
+                 "mô tả.</li>"
+                 "<li>Tách riêng từng ván thành video rời.</li>"
+                 "<li>Trang web theo dõi tiến độ, và tab hỗ trợ cắt thử một "
+                 "đoạn.</li>"
+                 "</ul>",
+
     # ---- remove QR tab
     "tab.qr": "Xoá QR code",
     "h2.qr": "Xoá QR code khỏi video",
@@ -300,6 +328,34 @@ EN = {
     "job.finished": "finished",
     "job.took": "took",
     "job.stale": "No new data",
+
+    # ---- version tab
+    "tab.ver": "Version",
+    "h2.ver": "Version",
+    "ver.current": "current",
+    "ver.2.0.d": "<ul>"
+                 "<li>Fixed an inverted cut: the seat was misread, so the "
+                 "opponent's turns were kept and Tieulinh's were cut.</li>"
+                 "<li>No more slivers of an opponent turn left at either "
+                 "end.</li>"
+                 "<li>New <b>Remove QR code</b>: the QR is found once and the "
+                 "channel logo painted over the whole video.</li>"
+                 '<li>The trim helper reads from both <code class="p-in">'
+                 "input\\</code> and "
+                 '<code class="p-out">output\\</code>.</li>'
+                 "<li>Fixed <b>Open folder</b> under Jobs: it opened the wrong "
+                 "one and swallowed the error.</li>"
+                 "</ul>",
+    "ver.1.0.d": "<ul>"
+                 "<li>Cuts out the wait on the opponent's turn and joins the "
+                 "pieces with a fade to black.</li>"
+                 "<li>Downloads a VOD from a YouTube link.</li>"
+                 "<li>Writes a chapter timeline by in-game day, ready to paste "
+                 "into the description.</li>"
+                 "<li>Splits each game out into its own video.</li>"
+                 "<li>A local page for progress, and a tab for cutting a short "
+                 "test piece.</li>"
+                 "</ul>",
 
     # ---- remove QR tab
     "tab.qr": "Remove QR code",
