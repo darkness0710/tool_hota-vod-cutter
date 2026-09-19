@@ -100,13 +100,20 @@ PARTIAL_FRAGMENT = re.compile(r"\.part-Frag\d+$", re.IGNORECASE)
 # page offered it with a Run button. Measured on the leftovers of a real
 # failure: 7.33 GiB of silent video, called finished by all three.
 PARTIAL_FORMAT = re.compile(r"\.f\d+\.[^.]+$", re.IGNORECASE)
+# The file ffmpeg writes WHILE muxing the two streams together:
+# "...[k3Sr6gt1XCA].temp.mp4". Same trap as the one above and missed for the
+# same reason -- .temp is in PARTIAL_SUFFIXES, but this name does not END in
+# it, it ends in .mp4. Merging an eight gigabyte VOD is minutes long, and for
+# all of them the page listed a half-written file with a Run button beside it.
+PARTIAL_MERGE = re.compile(r"\.temp\.[^.]+$", re.IGNORECASE)
 
 
 def is_partial(name):
     """Is this one of yt-dlp's leftovers rather than a finished download?"""
     return (name.endswith(PARTIAL_SUFFIXES)
             or bool(PARTIAL_FRAGMENT.search(name))
-            or bool(PARTIAL_FORMAT.search(name)))
+            or bool(PARTIAL_FORMAT.search(name))
+            or bool(PARTIAL_MERGE.search(name)))
 
 
 def already_have(dest, video_id):

@@ -23,55 +23,101 @@ _HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TieuLinh-Hota-Download-And-Cut-Video</title>
 <style>
+  /* The ground is darker than the cards now, not lighter. Everything used to
+     sit within four points of lightness of everything else, so nothing read as
+     a surface and nothing read as behind one -- the page came out as a single
+     grey field with lines drawn on it. Dropping the background and lifting the
+     cards is what makes a card look like a card, and it costs no contrast on
+     the text, which is what --ink and --dim are for. */
   :root {
-    --bg: #14161a; --card: #1c1f25; --line: #2b3038; --ink: #e6e8ec;
-    --dim: #8b93a1; --accent: #5aa9e6; --ok: #4caf82; --warn: #d9a13b;
-    --bad: #d9534f;
+    --bg: #0f1115; --card: #171a20; --raised: #1e222a; --sunken: #0c0e12;
+    --line: #262b34; --line-soft: #1f242c;
+    --ink: #e9ecf1; --dim: #949cab;
+    --accent: #5aa9e6; --accent-dim: #4b9cdd;
+    --accent-soft: rgba(90, 169, 230, .13);
+    --ok: #4caf82; --warn: #d9a13b; --bad: #d9534f;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 14px/1.5 "Segoe UI", system-ui, sans-serif; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 18px 60px; }
-  .head { display: flex; align-items: flex-start; gap: 16px; }
+         font: 14px/1.6 "Segoe UI", system-ui, sans-serif;
+         -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 30px 20px 72px; }
+  .head { display: flex; align-items: flex-start; gap: 16px;
+          margin-bottom: 18px; }
   .head h1 { flex: 1; min-width: 0; }
   .langs { display: inline-flex; gap: 2px; padding: 3px; flex: none;
-           background: #0e1014; border: 1px solid var(--line);
-           border-radius: 8px; }
+           background: var(--sunken); border: 1px solid var(--line);
+           border-radius: 9px; }
   .langs button { padding: 4px 11px; font-size: 12px; font-weight: 700;
         background: none; border: 0; color: var(--dim); border-radius: 5px; }
-  .langs button:hover { color: var(--ink); background: #1a1f27; }
+  .langs button:hover { color: var(--ink); background: #191e26; }
   .langs button.on, .langs button.on:hover { color: #0d1117;
         background: var(--accent); }
   /* The version, where it can be read without opening anything. It used to
      live only inside the Version tab, which meant the one question this page
      could not answer at a glance was which build you were looking at. */
-  .vertag { flex: none; align-self: center; padding: 4px 11px;
-            background: none; border: 1px solid var(--line); border-radius: 8px;
-            color: var(--dim); font: inherit; font-size: 12px;
-            font-weight: 700; cursor: pointer; }
+  .vertag { flex: none; align-self: center; padding: 5px 12px;
+            background: var(--sunken); border: 1px solid var(--line);
+            border-radius: 9px; color: var(--dim); font: inherit;
+            font-size: 12px; font-weight: 700; cursor: pointer; }
   .vertag:hover { color: var(--accent); border-color: var(--accent); }
-  h1 { font-size: 19px; margin: 0 0 2px; }
+  h1 { font-size: 21px; margin: 0 0 2px; letter-spacing: -.01em; }
   h1 a { color: var(--accent); font-weight: 400; font-size: 15px;
          text-decoration: none; }
   h1 a:hover { text-decoration: underline; }
-  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em;
-       color: var(--dim); margin: 28px 0 10px; font-weight: 600; }
+  /* A short accent rule to the left of each section label. The labels are
+     small dim uppercase by design -- they should not compete with the content
+     under them -- but on a page this long that left them with nothing to
+     catch the eye, so scanning for "2 · CHỌN NGUỒN" meant reading. A 3 px bar
+     is enough to find a section without raising the label's own weight. */
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .13em;
+       color: var(--dim); margin: 34px 0 12px; font-weight: 700;
+       position: relative; padding-left: 13px; }
+  h2::before { content: ""; position: absolute; left: 0; top: 50%;
+       transform: translateY(-50%); width: 3px; height: 13px;
+       border-radius: 2px; background: var(--accent); opacity: .75; }
+  /* A hairline of light along the top edge and a soft shadow under it. That
+     pair is what reads as "raised" on a dark ground -- a border alone reads as
+     a drawn rectangle, which is what these were. */
   .card { background: var(--card); border: 1px solid var(--line);
-          border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+          border-radius: 12px; padding: 18px 20px; margin-bottom: 12px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035),
+                      0 2px 14px rgba(0, 0, 0, .28); }
   .drive { display: flex; align-items: center; gap: 12px; font-size: 13px; }
-  .drive .bar { flex: 1; height: 8px; background: #0e1014; border-radius: 4px;
+  .drive .bar { flex: 1; height: 10px; background: var(--sunken);
+        border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .5);
                 overflow: hidden; }
-  .drive .bar i { display: block; height: 100%; background: var(--accent); }
+  .drive .bar i { display: block; height: 100%; border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent-dim), #7fc4f0);
+        transition: width .3s ease; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  input[type=text] { flex: 1; min-width: 260px; background: #0e1014;
-       border: 1px solid var(--line); color: var(--ink); border-radius: 6px;
-       padding: 9px 11px; font: inherit; }
-  select, button { background: #262b33; color: var(--ink); font: inherit;
-       border: 1px solid var(--line); border-radius: 6px; padding: 9px 13px;
-       cursor: pointer; }
-  button.go { background: var(--accent); border-color: var(--accent);
-              color: #06121c; font-weight: 600; }
-  button.small { padding: 5px 10px; font-size: 13px; }
+  input[type=text] { flex: 1; min-width: 260px; background: var(--sunken);
+       border: 1px solid var(--line); color: var(--ink); border-radius: 8px;
+       padding: 10px 12px; font: inherit; }
+  input[type=text]::placeholder { color: #6b7381; }
+  select, button { background: var(--raised); color: var(--ink); font: inherit;
+       border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px;
+       cursor: pointer;
+       transition: background .12s ease, border-color .12s ease,
+                   color .12s ease; }
+  select:hover, button:hover { background: #252b34; border-color: #333a46; }
+  /* One button on the page starts the work. It is the only one that is filled,
+     and the glow is what separates it from the row of outlined buttons beside
+     it without making them look disabled. */
+  button.go { background: linear-gradient(180deg, #6fb6ea, var(--accent-dim));
+              border-color: var(--accent-dim); color: #06121c;
+              font-weight: 700;
+              box-shadow: 0 2px 12px rgba(90, 169, 230, .28); }
+  button.go:hover { background: linear-gradient(180deg, #7dbef0, #58a6e3);
+                    border-color: #58a6e3; }
+  /* Keyboard focus has to be visible; a tool run from the keyboard should not
+     have to be driven by guesswork. */
+  a:focus-visible, button:focus-visible, select:focus-visible,
+  input:focus-visible { outline: 2px solid rgba(90, 169, 230, .55);
+                        outline-offset: 2px; }
+  input[type=text]:focus { border-color: var(--accent-dim); outline: none;
+                           box-shadow: 0 0 0 3px rgba(90, 169, 230, .15); }
+  button.small { padding: 6px 11px; font-size: 13px; }
   button.danger { border-color: #5a3436; color: #e08c88; }
   button.danger:hover { background: #3a2426; }
   .files { display: flex; flex-direction: column; gap: 6px; }
@@ -136,9 +182,17 @@ _HTML = r"""<!doctype html>
         margin: 10px 0 0; white-space: pre-wrap; }
   .empty { color: var(--dim); font-size: 13px; }
   .opts { padding: 4px 6px; }
-  .opt { display: flex; gap: 11px; align-items: flex-start; padding: 11px 10px;
-         border-radius: 6px; cursor: pointer; }
-  .opt:hover { background: #22262e; }
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 12px;
+         border-radius: 9px; cursor: pointer;
+         transition: background .12s ease, box-shadow .12s ease; }
+  .opt:hover { background: var(--raised); }
+  /* The radio dot was the only thing saying which of the three was picked, and
+     at 13 px on a grey field that is not enough -- the answer to "what will
+     this do when I press the button" should be readable without hunting for a
+     dot. :has() is what lets the LABEL respond to its own input; where it is
+     unsupported the dot still works and nothing is lost. */
+  .opt:has(input:checked) { background: var(--accent-soft);
+         box-shadow: inset 0 0 0 1px rgba(90, 169, 230, .38); }
   .opt input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
   .opt b { display: block; font-weight: 600; }
   .opt i { display: block; color: var(--dim); font-style: normal;
@@ -195,8 +249,9 @@ _HTML = r"""<!doctype html>
   details.dev > summary { cursor: pointer; color: var(--dim); font-size: 13px;
        padding: 10px 6px 10px 2px; user-select: none; }
   details.dev > summary:hover { color: var(--ink); }
-  code { background: #0e1014; border: 1px solid var(--line); border-radius: 4px;
-         padding: 1px 5px; font-size: 12px; color: var(--ink); }
+  code { background: var(--sunken); border: 1px solid var(--line-soft);
+         border-radius: 5px; padding: 1px 6px; font-size: 12px;
+         color: #c8d0dc; }
   .modal { position: fixed; inset: 0; background: rgba(6, 8, 11, .78);
            display: flex; align-items: flex-start; justify-content: center;
            padding: 40px 16px; overflow: auto; z-index: 10; }
@@ -228,17 +283,18 @@ _HTML = r"""<!doctype html>
   /* This is the page's top-level choice, so it is drawn as a control rather
      than as two words with a thin line under one of them. inline-flex so the
      bar hugs the two tabs instead of running the width of the page. */
-  .tabs { display: inline-flex; gap: 4px; margin: 22px 0 6px; padding: 5px;
-          background: #0e1014; border: 1px solid var(--line);
-          border-radius: 11px; }
+  .tabs { display: inline-flex; gap: 4px; margin: 26px 0 6px; padding: 5px;
+          background: var(--sunken); border: 1px solid var(--line);
+          border-radius: 12px; }
   .tabs button { background: none; border: 0; color: var(--dim); font: inherit;
         font-size: 15px; font-weight: 700; letter-spacing: .2px;
         cursor: pointer; padding: 10px 22px; border-radius: 8px;
         transition: background .12s ease, color .12s ease; }
-  .tabs button:hover { color: var(--ink); background: #1a1f27; }
+  .tabs button:hover { color: var(--ink); background: #191e26; }
   /* Near-black on the accent blue: the filled tab has to read as selected
      from across the room, and dark ink on that blue is what carries. */
   .tabs button.on, .tabs button.on:hover { color: #0d1117;
+        box-shadow: 0 2px 10px rgba(90, 169, 230, .3);
         background: var(--accent); box-shadow: 0 2px 10px rgba(90,169,230,.28); }
   video.prev { width: 100%; max-height: 62vh; background: #000; border-radius: 8px;
         border: 1px solid var(--line); margin: 10px 0 4px; display: block; }
