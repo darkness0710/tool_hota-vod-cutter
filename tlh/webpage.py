@@ -83,6 +83,60 @@ _HTML = r"""<!doctype html>
           border-radius: 12px; padding: 18px 20px; margin-bottom: 12px;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035),
                       0 2px 14px rgba(0, 0, 0, .28); }
+  /* ------------------------------------------------------------ channel ---
+     The channel is what this whole tool is pointed at, and until now it
+     appeared on the page as one link inside the heading -- lighter than the
+     disk bar underneath it. It goes first because it is the SOURCE; the drive
+     below it is only the constraint. */
+  .chan-top { display: flex; align-items: center; gap: 12px;
+              flex-wrap: wrap; }
+  .chan-ava { width: 46px; height: 46px; border-radius: 50%; flex: none;
+              object-fit: cover; background: var(--sunken);
+              border: 1px solid var(--line); }
+  .chan-id { flex: 1; min-width: 160px; }
+  .chan-name { font-size: 16px; font-weight: 600; display: flex;
+               align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chan-at { color: var(--dim); font-size: 13px; text-decoration: none; }
+  .chan-at:hover { color: var(--accent); text-decoration: underline; }
+  /* A dot that blinks, not a word that has to be read. "Is he on right now"
+     is the one fact on this card that changes within the hour, and it is also
+     the one that decides whether a link is worth pasting at all -- a stream
+     still running cannot be downloaded, which is why the picker greys those
+     rows out. */
+  .live { display: inline-flex; align-items: center; gap: 6px;
+          padding: 2px 9px 2px 8px; border-radius: 999px; font-size: 11px;
+          font-weight: 700; letter-spacing: .06em; color: #f0908c;
+          background: rgba(217, 83, 79, .15);
+          border: 1px solid rgba(217, 83, 79, .42); }
+  .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%;
+                  background: var(--bad); animation: blip 1.6s ease-in-out infinite; }
+  @keyframes blip { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+  /* One drawing of "a label and a number", because the page had three
+     already -- the drive bar, the folder rows and a job's .kv list -- and
+     this card wanted a fourth. The 1px grid gap over a line-coloured
+     background is what draws the hairlines between tiles: a border per tile
+     doubles up where two meet, and this cannot. */
+  .stats { display: grid; gap: 1px; margin: 14px 0 0; border-radius: 10px;
+           overflow: hidden; background: var(--line-soft);
+           border: 1px solid var(--line-soft);
+           grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+  .stats > div { background: var(--sunken); padding: 10px 13px 11px;
+                 min-width: 0; }
+  .stats dt { color: var(--dim); font-size: 11px; font-weight: 700;
+              text-transform: uppercase; letter-spacing: .08em; }
+  .stats dd { margin: 3px 0 0; font-size: 17px; font-weight: 600;
+              font-variant-numeric: tabular-nums; }
+  /* Every tile's second line, dim and clipped: a stream title is longer than
+     any tile and must not be allowed to set the tile's width. */
+  .stats .sub { display: block; margin-top: 3px; font-size: 12px;
+                font-weight: 400; color: var(--dim); overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
+  .stats dd.none { color: var(--dim); font-weight: 400; font-size: 15px; }
+  /* No margin-top here: the shared `details.dev` rule further down already
+     gives it one, together with the rule above it that separates it from the
+     tiles. Setting it twice is how the two drift apart. */
+  .chan-about .bio { white-space: pre-wrap; color: var(--dim); font-size: 13px;
+                     margin: 4px 0 2px; }
   .drive { display: flex; align-items: center; gap: 12px; font-size: 13px; }
   .drive .bar { flex: 1; height: 10px; background: var(--sunken);
         border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .5);
@@ -275,6 +329,28 @@ _HTML = r"""<!doctype html>
   .vid .m { color: var(--dim); font-size: 13px; margin-top: 3px; }
   .vid .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .vid.live { opacity: .55; }
+  /* The title row carries the state, so the eye finds it on the same x down
+     the whole list instead of hunting for it inside a line of metadata. */
+  .vid .t { display: flex; gap: 8px; align-items: baseline; }
+  .vid .t span { flex: 1; min-width: 0; }
+  /* What turns this list from "what has he streamed" into "what is left to
+     do". Both facts are read off this machine, not off YouTube: the file in
+     input\ and the record in work/index.json. */
+  .have { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .05em;
+          padding: 2px 8px; border-radius: 999px; border: 1px solid;
+          white-space: nowrap; }
+  .have.cut { color: var(--ok); border-color: rgba(76, 175, 130, .45);
+              background: rgba(76, 175, 130, .13); }
+  .have.dl { color: var(--warn); border-color: rgba(217, 161, 59, .45);
+             background: rgba(217, 161, 59, .13); }
+  /* A row already dealt with steps back rather than disappearing: the filter
+     above is what removes it, and doing both would leave no way to see that
+     the list had been trimmed. */
+  .vid.done .t span, .vid.done img { opacity: .62; }
+  .chfilter { display: inline-flex; align-items: center; gap: 6px;
+              color: var(--dim); font-size: 13px; cursor: pointer;
+              user-select: none; }
+  .chfilter input { accent-color: var(--accent); margin: 0; }
   button:disabled { opacity: .45; cursor: not-allowed; }
   /* Keyboard users had nothing: the browser default ring is close to
      invisible on this background. :focus-visible so a mouse click does
@@ -371,19 +447,64 @@ _HTML = r"""<!doctype html>
   .foot { color: var(--dim); font-size: 12px; margin-top: 26px;
           border-top: 1px solid var(--line); padding-top: 12px;
           line-height: 1.6; }
+  /* This page animates bar widths, card backgrounds and a blinking live dot.
+     Someone who has asked their machine not to do that has asked for a
+     reason, and none of the motion here carries meaning the colour does not
+     carry too -- so it all comes off, rather than being slowed down. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important;
+                             transition: none !important; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="head">
-    <h1><span data-t="head.title">Cắt VOD stream từ kênh</span>
-      <a href="https://www.youtube.com/@TieulinhHOTA" target="_blank" rel="noreferrer">https://www.youtube.com/@TieulinhHOTA</a></h1>
+    <!-- The channel address used to be written out here, which duplicated
+         CHANNELS in tlh/web.py and named only the main one of the two. The
+         card below says it instead, in the channel's own words. -->
+    <h1><span data-t="head.title">Cắt VOD stream Heroes 3</span></h1>
     <button class="vertag" data-gotab="ver" data-tt="tip.version"
       title="Xem có gì mới trong bản này">v__VERSION__</button>
     <div class="langs" data-tt="lang.tip" title="Đổi ngôn ngữ giao diện">
       <button data-lang="vi" class="on">VI</button>
       <button data-lang="en">EN</button>
     </div>
+  </div>
+
+  <!-- Everything on this card except the last two tiles comes out of the SAME
+       flat request the picker already makes, so showing it costs no extra
+       call to YouTube. The two counters cost none at all: they are read off
+       this disk. -->
+  <div class="card" id="chan">
+    <div class="chan-top">
+      <img class="chan-ava" id="chava" alt="" hidden>
+      <div class="chan-id">
+        <div class="chan-name"><span id="chname">&hellip;</span><span
+          class="live" id="chlive" hidden data-t="chan.live">ĐANG PHÁT</span></div>
+        <a class="chan-at" id="chat" target="_blank" rel="noreferrer"
+           href="https://www.youtube.com/@TieulinhHOTA">@TieulinhHOTA</a>
+      </div>
+      <select id="chpick" data-tt="tip.chpick"
+        title="Đổi giữa kênh chính và kênh dự phòng"></select>
+      <button class="small" id="chsync" data-t="btn.refresh"
+        data-tt="tip.refreshChan"
+        title="Hỏi lại YouTube về kênh này">Làm mới</button>
+      <button class="small" id="chall" data-t="btn.seeAll" data-tt="tip.chopen"
+        title="Mở danh sách stream của kênh để lấy link">Xem tất cả stream</button>
+    </div>
+    <dl class="stats">
+      <div><dt data-t="chan.subs">Người đăng ký</dt><dd id="chsubs">&mdash;</dd></div>
+      <div><dt data-t="chan.latest">Stream mới nhất</dt>
+        <dd id="chlatest">&mdash;</dd></div>
+      <div><dt data-t="chan.have">Đã có trên máy</dt><dd id="chhave">&mdash;</dd></div>
+      <div><dt data-t="chan.cut">Đã cắt xong</dt><dd id="chcut">&mdash;</dd></div>
+    </dl>
+    <details class="dev chan-about" id="chabout" hidden>
+      <summary data-t="chan.about">Giới thiệu kênh</summary>
+      <div class="bio" id="chdesc"></div>
+    </details>
+    <div class="note" id="chcard"></div>
   </div>
 
   <div class="card">
@@ -633,17 +754,23 @@ _HTML = r"""<!doctype html>
 
   <div class="modal" id="chmodal" hidden>
     <div class="sheet">
+      <!-- The channel dropdown that used to sit here is gone: the card at the
+           top of the page carries it now, and two controls for one choice is
+           how they end up disagreeing. This sheet lists whichever channel the
+           card is on, and says which one that is. -->
       <div class="head">
-        <b>Stream của kênh</b>
-        <select id="chchan"></select>
+        <b><span data-t="ch.head">Stream của kênh</span>
+           <span id="chwho"></span></b>
         <select id="chlimit">
-          <option value="10">10 mới nhất</option>
-          <option value="20">20 mới nhất</option>
-          <option value="100">100 mới nhất</option>
+          <option value="10" data-t="ch.n10">10 mới nhất</option>
+          <option value="20" selected data-t="ch.n20">20 mới nhất</option>
+          <option value="100" data-t="ch.n100">100 mới nhất</option>
         </select>
-        <button class="small" id="chload">Tải lại</button>
+        <label class="chfilter"><input type="checkbox" id="chnew"><span
+          data-t="ch.onlyNew">chỉ hiện chưa tải</span></label>
+        <button class="small" id="chload" data-t="btn.reload">Tải lại</button>
         <span class="n" id="chnote"></span>
-        <button class="small" id="chclose">Đóng</button>
+        <button class="small" id="chclose" data-t="btn.close">Đóng</button>
       </div>
       <div id="chlist"></div>
     </div>

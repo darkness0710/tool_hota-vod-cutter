@@ -179,7 +179,8 @@ def _load_jobs():
         return
     for path in sorted(JOBS_DIR.glob("*.json")):
         try:
-            job = json.load(open(path, encoding="utf-8"))
+            with open(path, encoding="utf-8") as fh:
+                job = json.load(fh)
         except (OSError, ValueError):
             continue
         # Nothing is running any more: this process just started. A job left
@@ -796,7 +797,90 @@ def trim_clip(name, start, end):
             "length": ffmpeg.duration(str(out)) or (end - start)}, "đã cắt"
 
 
-_channel_cache = {}             # (url, limit) -> (fetched_at, entries)
+_channel_cache = {}             # (url, limit) -> (fetched_at, {info, entries})
+
+
+def _channel_art(thumbs):
+    """The avatar out of a channel's thumbnail list.
+
+    The list mixes two images: the banner, in six crops of one picture, all
+    far wider than they are tall, and the avatar, as one square plus an
+    "avatar_uncropped" carrying no size at all. Squareness is what separates
+    them -- the `id` is a bare index on most rows and cannot be relied on --
+    and the uncropped entry is taken only when nothing sized turned up, since
+    a width of None loses every comparison.
+    """
+    best, best_w, fallback = None, -1, None
+    for thumb in thumbs or []:
+        url = thumb.get("url")
+        if not url:
+            continue
+        width, height = thumb.get("width") or 0, thumb.get("height") or 0
+        if not width or not height:
+            if str(thumb.get("id")) == "avatar_uncropped":
+                fallback = url
+            continue
+        if abs(width - height) <= 1 and width > best_w:
+            best, best_w = url, width
+    return best or fallback
+
+
+def _channel_header(info):
+    """What the channel page itself says, out of the listing already in hand.
+
+    Every field here arrives with the flat request below -- yt-dlp puts the
+    channel's own metadata on the playlist dict and we were throwing it away.
+    So this costs no second call, which is the whole reason the page can
+    afford to show it on load.
+
+    Three things are NOT here because YouTube does not send them on a channel
+    tab, and asking for them would be inventing numbers: the channel's total
+    stream count (`playlist_count` comes back None), its total view count, and
+    a date on any entry. Measured on the real channel, all three were None.
+    """
+    return {
+        "name": info.get("channel") or info.get("uploader") or "",
+        "handle": info.get("uploader_id") or "",
+        "url": info.get("uploader_url") or info.get("channel_url") or "",
+        "followers": info.get("channel_follower_count"),
+        "description": (info.get("description") or "").strip(),
+        "avatar": _channel_art(info.get("thumbnails")),
+    }
+
+
+def _seen_locally(entries):
+    """Mark each listed video with how far this machine already took it.
+
+    Both sources are local and neither costs a request. `fetch.already_have`
+    is the same test the downloader itself runs, so a half-finished file
+    counts as absent here exactly as it does there -- the alternative, a
+    plain "is the id in input/", is the `.f299.mp4` trap in
+    documents/downloading.md wearing a different hat.
+
+    work/index.json is what knows about the second half, because it maps the
+    downloaded filename to the output it produced. The output file is checked
+    for rather than trusted: a record whose video has since been cleared or
+    moved must not report "done" and send somebody to an empty folder.
+    """
+    by_id = {}
+    for entry in naming.load_index(str(WORK_DIR)).values():
+        if entry.get("id"):
+            by_id[entry["id"]] = entry
+
+    out = []
+    for entry in entries:
+        entry = dict(entry)             # the cached listing stays untouched
+        record = by_id.get(entry.get("id") or "") or {}
+        produced = record.get("output")
+        entry["have"] = ""
+        entry["output"] = None
+        if produced and (OUTPUT_DIR / produced).exists():
+            entry["have"], entry["output"] = "cut", produced
+        elif entry.get("id") and fetch.already_have(str(INPUT_DIR),
+                                                    entry["id"]):
+            entry["have"] = "downloaded"
+        out.append(entry)
+    return out
 
 
 def channel_streams(url=None, limit=10):
@@ -808,9 +892,15 @@ def channel_streams(url=None, limit=10):
     timestamp, thumbnail and live_status. Measured on a real channel: fifty
     entries in 1.1 seconds, one request.
 
+    Returns {"info": ..., "entries": [...]} rather than the bare list it used
+    to: the channel's own details ride along on the same response, and the
+    page shows them instead of the hardcoded address it carried before.
+
     Cached for a moment because the obvious thing to do with a 10/20/100
     dropdown is to try all three, and repeated listings from one address are
-    what earns a 429.
+    what earns a 429. Only the NETWORK half is cached -- what is on this disk
+    is read again every call, or a download finished thirty seconds ago would
+    keep reporting as missing for two minutes.
     """
     try:
         import yt_dlp
@@ -828,7 +918,8 @@ def channel_streams(url=None, limit=10):
     key = (target, limit)
     hit = _channel_cache.get(key)
     if hit and time.time() - hit[0] < CHANNEL_TTL:
-        return hit[1], "cache"
+        return {"info": hit[1]["info"],
+                "entries": _seen_locally(hit[1]["entries"])}, "cache"
 
     opts = {"quiet": True, "no_warnings": True,
             "extract_flat": "in_playlist", "playlistend": limit}
@@ -860,8 +951,10 @@ def channel_streams(url=None, limit=10):
             "thumb": (thumbs[-1].get("url") if thumbs else
                       f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg"),
         })
-    _channel_cache[key] = (time.time(), out)
-    return out, f"{len(out)} video"
+    payload = {"info": _channel_header(info), "entries": out}
+    _channel_cache[key] = (time.time(), payload)
+    return {"info": payload["info"], "entries": _seen_locally(out)}, \
+        f"{len(out)} video"
 
 
 _date_cache = {}                # video id -> epoch seconds, or None
@@ -1129,14 +1222,18 @@ class Handler(BaseHTTPRequestHandler):
                                               ensure_ascii=False))
 
         if path == "/api/channel":
-            entries, message = channel_streams(body.get("url"),
+            listing, message = channel_streams(body.get("url"),
                                                body.get("limit", 10))
-            if entries is None:
+            if listing is None:
                 return self._send(502, json.dumps({"error": message},
                                                   ensure_ascii=False))
+            # `channel` stays the address it was asked for, because that is
+            # what the page matches its dropdown against; the channel's own
+            # details are a separate block beside it.
             return self._send(200, json.dumps(
                 {"channel": (body.get("url") or CHANNEL), "note": message,
-                 "entries": entries}, ensure_ascii=False))
+                 "info": listing["info"], "entries": listing["entries"]},
+                ensure_ascii=False))
 
         if path == "/api/video-date":
             when, message = video_date(body.get("id"))

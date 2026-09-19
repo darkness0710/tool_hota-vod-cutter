@@ -171,7 +171,12 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
         fh.write("idx,start_s,end_s,dur_s,start_hms,end_hms\n")
         for k, (a, b) in enumerate(segs, 1):
             fh.write(f"{k},{a:.2f},{b:.2f},{b-a:.2f},{hms(a)},{hms(b)}\n")
-    json.dump(segs, open(os.path.join(workdir, "segments.json"), "w"))
+    # Closed explicitly. Left to the garbage collector this relied on CPython
+    # freeing the handle promptly to flush it -- true in practice, but the
+    # failure if it is ever not true is a truncated segments.json, which the
+    # next run reads back as a valid shorter cut.
+    with open(os.path.join(workdir, "segments.json"), "w") as fh:
+        json.dump(segs, fh)
     log(f"  segment list -> {csv_path}")
 
     chapters = timeline.build(sig, segs)
