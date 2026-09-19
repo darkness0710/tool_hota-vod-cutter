@@ -107,6 +107,16 @@ VI = {
     "tab.ver": "Phiên bản",
     "h2.ver": "Phiên bản",
     "ver.current": "hiện tại",
+    "ver.3.0.d": "<ul>"
+                 "<li>Cắt được video ở mọi độ phân giải 16:9 — 720p, 1080p, "
+                 "1440p. Video ra giữ nguyên độ phân giải của bản gốc.</li>"
+                 "<li>Tải về ở độ phân giải gốc thay vì ép xuống 1080p.</li>"
+                 "<li>Giữ nguyên tốc độ khung hình của bản gốc thay vì ép 60 "
+                 "— file nhỏ hơn khoảng 13% và render nhanh hơn, hình y "
+                 "hệt.</li>"
+                 "<li>Video không phải 16:9 bị từ chối thẳng, kèm lý do.</li>"
+                 "<li>Không còn đổ lỗi đỏ ra cửa sổ đen khi trình duyệt ngắt "
+                 "kết nối.</li></ul>",
     "ver.2.0.d": "<ul>"
                  "<li>Sửa lỗi cắt ngược: đọc nhầm ghế nên giữ lượt đối thủ và "
                  "cắt lượt Tieulinh.</li>"
@@ -333,6 +343,17 @@ EN = {
     "tab.ver": "Version",
     "h2.ver": "Version",
     "ver.current": "current",
+    "ver.3.0.d": "<ul>"
+                 "<li>Cuts any 16:9 source — 720p, 1080p, 1440p. The output "
+                 "keeps the source's own resolution.</li>"
+                 "<li>Downloads at the source's resolution instead of forcing "
+                 "1080p.</li>"
+                 "<li>Keeps the source's frame rate instead of forcing 60 — "
+                 "about 13% smaller and quicker to render, same picture.</li>"
+                 "<li>Anything not 16:9 is refused outright, with the "
+                 "reason.</li>"
+                 "<li>No more red traceback in the black window when a browser "
+                 "hangs up.</li></ul>",
     "ver.2.0.d": "<ul>"
                  "<li>Fixed an inverted cut: the seat was misread, so the "
                  "opponent's turns were kept and Tieulinh's were cut.</li>"

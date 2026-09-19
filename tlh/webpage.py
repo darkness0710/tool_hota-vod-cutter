@@ -264,13 +264,28 @@ _HTML = r"""<!doctype html>
          gap: 0; align-items: start; margin-top: 8px; font-size: 13px;
          line-height: 1.6; }
   .rel dt { white-space: nowrap; font-variant-numeric: tabular-nums;
-            padding-right: 18px; line-height: 1.6; }
+            padding-right: 18px; padding-left: 11px; line-height: 1.6;
+            border-left: 3px solid transparent; }
+  /* The current release, marked on the ROW rather than by the pill alone.
+     A pill is a label you have to read; a tinted band with a bar down its
+     edge is one you see before reading anything, which is the whole job of
+     this tab -- somebody opens it to find out what they are running.
+     The transparent border sits on every dt so the text does not shift by
+     three pixels between the current row and the rest. */
+  .rel dt.now { border-left-color: var(--accent); }
+  .rel dt.now, .rel dd.now { background: rgba(90, 169, 230, .07); }
+  .rel dt.now b { color: var(--accent); }
   .rel dt b { color: var(--ink); font-size: 16px; font-weight: 600; }
   /* A quiet pill, not a filled one: it labels a row, it is not a control, and
      at the weight of a button it would read as something to press. */
-  .rel dt .tag { display: inline-block; margin-left: 6px; padding: 1px 7px;
-                 border: 1px solid var(--accent); border-radius: 999px;
-                 color: var(--accent); font-size: 11px; vertical-align: 2px; }
+  /* Filled, not outlined. Beside an accent-coloured version number an
+     outlined pill of the same colour reads as part of the number; filled, it
+     reads as a badge on it. Near-black text for the same reason the selected
+     tab uses it -- accent blue is too light to carry white. */
+  .rel dt .tag { display: inline-block; margin-left: 6px; padding: 1px 8px;
+                 background: var(--accent); border-radius: 999px;
+                 color: #0d1117; font-size: 11px; font-weight: 600;
+                 vertical-align: 2px; }
   .rel dd { margin: 0; color: var(--dim); }
   .rel dd ul { margin: 0; padding-left: 18px; }
   .rel dd li { margin: 0 0 5px; }
@@ -493,7 +508,18 @@ _HTML = r"""<!doctype html>
   <h2 data-t="h2.ver">Phiên bản</h2>
   <div class="card">
     <dl class="rel">
-      <dt><b>2.0</b> <span class="tag" data-t="ver.current">hiện tại</span></dt>
+      <dt class="now"><b>3.0</b> <span class="tag"
+        data-t="ver.current">hiện tại</span></dt>
+      <dd class="now" data-th="ver.3.0.d"><ul>
+        <li>Cắt được video ở mọi độ phân giải 16:9 &mdash; 720p, 1080p, 1440p.
+          Video ra giữ nguyên độ phân giải của bản gốc.</li>
+        <li>Tải về ở độ phân giải gốc thay vì ép xuống 1080p.</li>
+        <li>Giữ nguyên tốc độ khung hình của bản gốc thay vì ép 60 &mdash; file
+          nhỏ hơn khoảng 13% và render nhanh hơn, hình y hệt.</li>
+        <li>Video không phải 16:9 bị từ chối thẳng, kèm lý do.</li>
+        <li>Không còn đổ lỗi đỏ ra cửa sổ đen khi trình duyệt ngắt kết nối.</li>
+      </ul></dd>
+      <dt><b>2.0</b></dt>
       <dd data-th="ver.2.0.d"><ul>
         <li>Sửa lỗi cắt ngược: đọc nhầm ghế nên giữ lượt đối thủ và cắt lượt
           Tieulinh.</li>
