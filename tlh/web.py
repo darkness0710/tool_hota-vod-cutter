@@ -883,7 +883,7 @@ def _seen_locally(entries):
     return out
 
 
-def channel_streams(url=None, limit=10):
+def channel_streams(url=None, limit=10, fresh=False):
     """One channel's livestreams, newest first, as the tab already orders them.
 
     A FLAT listing: yt-dlp is told not to open each video's player API, so
@@ -900,7 +900,9 @@ def channel_streams(url=None, limit=10):
     dropdown is to try all three, and repeated listings from one address are
     what earns a 429. Only the NETWORK half is cached -- what is on this disk
     is read again every call, or a download finished thirty seconds ago would
-    keep reporting as missing for two minutes.
+    keep reporting as missing for two minutes. `fresh` skips the cache, for
+    the page's Làm mới button: a refresh that hands back a two-minute-old
+    answer is a button that lies.
     """
     try:
         import yt_dlp
@@ -916,7 +918,7 @@ def channel_streams(url=None, limit=10):
     limit = max(1, min(int(limit or 10), 100))
 
     key = (target, limit)
-    hit = _channel_cache.get(key)
+    hit = None if fresh else _channel_cache.get(key)
     if hit and time.time() - hit[0] < CHANNEL_TTL:
         return {"info": hit[1]["info"],
                 "entries": _seen_locally(hit[1]["entries"])}, "cache"
@@ -1223,7 +1225,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/channel":
             listing, message = channel_streams(body.get("url"),
-                                               body.get("limit", 10))
+                                               body.get("limit", 10),
+                                               fresh=bool(body.get("fresh")))
             if listing is None:
                 return self._send(502, json.dumps({"error": message},
                                                   ensure_ascii=False))

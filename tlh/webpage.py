@@ -108,8 +108,21 @@ _HTML = r"""<!doctype html>
           font-weight: 700; letter-spacing: .06em; color: #f0908c;
           background: rgba(217, 83, 79, .15);
           border: 1px solid rgba(217, 83, 79, .42); }
+  /* The display above beats the browser's own [hidden] rule, exactly as
+     .modal's does further down -- and without this line the badge sat on the
+     card announcing a live stream at all times, including while the listing
+     had not arrived yet. Any rule here that sets `display` has to say this
+     too; that is the whole trap. */
+  .live[hidden] { display: none; }
+  /* Not live is a STATE, not the absence of one. Leaving the badge off
+     entirely makes "he is not streaming" look identical to "this has not
+     loaded", on the one line of the card whose whole job is to answer
+     whether he is on right now. */
+  .live.off { color: var(--dim); background: var(--sunken);
+              border-color: var(--line); font-weight: 600; }
   .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%;
                   background: var(--bad); animation: blip 1.6s ease-in-out infinite; }
+  .live.off::before { background: var(--line); animation: none; }
   @keyframes blip { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
   /* One drawing of "a label and a number", because the page had three
      already -- the drive bar, the folder rows and a job's .kv list -- and
@@ -325,13 +338,15 @@ _HTML = r"""<!doctype html>
   .vid img { width: 160px; height: 90px; object-fit: cover; border-radius: 6px;
              background: #0e1014; flex: none; }
   .vid .body { flex: 1; min-width: 0; }
-  .vid .t { font-weight: 600; overflow-wrap: anywhere; }
+  /* The title row is a flex line so the state badge can sit at its end and
+     land on the same x down the whole list, instead of being hunted for
+     inside a sentence of metadata. overflow-wrap is inherited, so it still
+     reaches the title in the span. */
+  .vid .t { font-weight: 600; overflow-wrap: anywhere; display: flex;
+            gap: 8px; align-items: baseline; }
   .vid .m { color: var(--dim); font-size: 13px; margin-top: 3px; }
   .vid .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .vid.live { opacity: .55; }
-  /* The title row carries the state, so the eye finds it on the same x down
-     the whole list instead of hunting for it inside a line of metadata. */
-  .vid .t { display: flex; gap: 8px; align-items: baseline; }
   .vid .t span { flex: 1; min-width: 0; }
   /* What turns this list from "what has he streamed" into "what is left to
      do". Both facts are read off this machine, not off YouTube: the file in
@@ -480,8 +495,16 @@ _HTML = r"""<!doctype html>
     <div class="chan-top">
       <img class="chan-ava" id="chava" alt="" hidden>
       <div class="chan-id">
+        <!-- No data-t on the badge: it says one of two different things and
+             applyLang() would overwrite whichever one is right with the live
+             one. chDrawCard() owns its text, and applyLang calls it. -->
         <div class="chan-name"><span id="chname">&hellip;</span><span
-          class="live" id="chlive" hidden data-t="chan.live">ĐANG PHÁT</span></div>
+          class="live off" id="chlive" hidden>Không phát</span></div>
+        <!-- A placeholder, not a fact: the script overwrites both the text
+             and the href from CHANNELS as soon as the listing lands, and from
+             the channel's own metadata after that. It is spelled out here for
+             the reason the Vietnamese below is -- so the card still says
+             something if the script never runs. -->
         <a class="chan-at" id="chat" target="_blank" rel="noreferrer"
            href="https://www.youtube.com/@TieulinhHOTA">@TieulinhHOTA</a>
       </div>
@@ -493,12 +516,14 @@ _HTML = r"""<!doctype html>
       <button class="small" id="chall" data-t="btn.seeAll" data-tt="tip.chopen"
         title="Mở danh sách stream của kênh để lấy link">Xem tất cả stream</button>
     </div>
+    <!-- Four facts, and the fourth is the one no other part of this page can
+         answer: of the streams this channel has put out, how many are already
+         on this disk and how many of those are finished. -->
     <dl class="stats">
       <div><dt data-t="chan.subs">Người đăng ký</dt><dd id="chsubs">&mdash;</dd></div>
-      <div><dt data-t="chan.latest">Stream mới nhất</dt>
-        <dd id="chlatest">&mdash;</dd></div>
+      <div><dt data-t="chan.latest">Stream mới nhất</dt><dd id="chlatest">&mdash;</dd></div>
+      <div><dt data-t="chan.aired">Phát lúc</dt><dd id="chaired">&mdash;</dd></div>
       <div><dt data-t="chan.have">Đã có trên máy</dt><dd id="chhave">&mdash;</dd></div>
-      <div><dt data-t="chan.cut">Đã cắt xong</dt><dd id="chcut">&mdash;</dd></div>
     </dl>
     <details class="dev chan-about" id="chabout" hidden>
       <summary data-t="chan.about">Giới thiệu kênh</summary>
@@ -910,6 +935,11 @@ function applyLang() {
   // data-th rebuilt the <code class="p-in"> spans, so the paths in them are
   // back to their placeholder text until the next poll. Ask for one now.
   if (LAST) refresh();
+  // The channel card and the picker rows are built in script, so data-t never
+  // reaches them -- they have to be drawn again by hand or they stay in the
+  // language they were first drawn in. CH is declared further down but this
+  // only ever runs after the whole script has been evaluated.
+  if (CH.entries) { chDrawCard(); chRows(); }
 }
 
 for (const b of document.querySelectorAll(".langs button")) {
@@ -1479,68 +1509,234 @@ document.getElementById("qgo").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- channel ---
-// A picker, deliberately separate from the rest of the page: it hands back a
-// link and changes nothing else. The listing is flat -- no player request per
-// video -- which is why a hundred rows take about a second, and also why it
-// carries no date. A date is one request per video, so it is fetched only for
-// a row somebody asks about.
+// One request, two readers. The card at the top of the page and the picker
+// sheet are fed by the SAME listing held in CH, because they show the same
+// facts -- fetching twice would let them disagree with each other, and would
+// double the only thing on this page that touches YouTube.
+//
+// The listing is flat: yt-dlp is told not to open each video's player API, so
+// a hundred rows cost one request and about a second, and no JavaScript
+// runtime is needed. The price is the date, which a flat entry does not carry
+// -- that is one request per video, so it is fetched for exactly one of them,
+// the newest finished stream, because that is the row anyone would act on.
+const CH = { info: null, entries: null, url: "", note: "", err: "",
+             busy: false, dated: "", when: 0 };
+let CHANS = [];
+
 const chModal = document.getElementById("chmodal");
 const chList = document.getElementById("chlist");
 const chNote = document.getElementById("chnote");
-const chChan = document.getElementById("chchan");
+const chPick = document.getElementById("chpick");
 
 function chShow(open) { chModal.hidden = !open; }
+function el(id) { return document.getElementById(id); }
+// A string with one number in it. The two languages put the number in
+// different places, so it cannot be built by concatenation.
+function Tn(key, n) { return T(key).replace("{n}", n); }
+function dmy(t) {
+  const d = new Date(t * 1000);
+  return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear();
+}
+
+// The newest stream that has ENDED. One still running cannot be downloaded --
+// the rows below grey those out for that reason -- so the one worth reporting
+// on is the newest finished one, not simply the first.
+function chNewest() {
+  for (const v of CH.entries || [])
+    if (v.live !== "is_live" && v.live !== "is_upcoming") return v;
+  return null;
+}
 
 // The channel list comes from the server so there is one list, not two.
-// Filled on the first open, then left alone: it does not change while the
-// page is up, and refilling it would throw away the reader's choice.
+// Filled once: it does not change while the page is up, and refilling it
+// would throw away the reader's choice.
 async function chChannels() {
-  if (chChan.options.length) return;
+  if (CHANS.length) return;
   const { ok, data } = await post("/api/channels", {});
-  const rows = (ok && data.channels) || [];
-  chChan.innerHTML = rows.map(c =>
+  CHANS = (ok && data.channels) || [];
+  CH.url = CH.url || (CHANS[0] || {}).url || "";
+  chPick.innerHTML = CHANS.map(c =>
     '<option value="' + esc(c.url) + '">' + esc(c.name) + "</option>").join("");
+  chPick.value = CH.url;
 }
+
+// One tile of the stats strip: big value, dim second line, and a visibly
+// absent state rather than a blank box -- a tile with nothing in it should
+// say so, not look like it failed to render.
+function tile(id, value, sub) {
+  const dd = el(id);
+  dd.classList.toggle("none", !value);
+  dd.innerHTML = (value ? esc(value) : "—") +
+                 (sub ? '<span class="sub">' + esc(sub) + "</span>" : "");
+}
+
+function chCardMsg(text, bad) {
+  const box = el("chcard");
+  box.className = bad ? "note bad" : "note";
+  box.textContent = text || "";
+}
+
+function chDrawCard() {
+  const info = CH.info || {};
+  const chosen = CHANS.find(c => c.url === CH.url) || {};
+  el("chname").textContent = info.name || chosen.name || "…";
+  const at = el("chat");
+  at.textContent = info.handle || chosen.name || "";
+  at.href = info.url || chosen.url || CH.url || "#";
+
+  const ava = el("chava");
+  if (info.avatar) { ava.src = info.avatar; ava.hidden = false; }
+  else { ava.removeAttribute("src"); ava.hidden = true; }
+
+  const rows = CH.entries || [];
+  // is_live ONLY. is_upcoming is a stream that has been scheduled and has not
+  // begun, which is not "đang phát". The picker still greys those rows out,
+  // because an unstarted stream cannot be downloaded either -- but that is a
+  // different statement from the one this badge makes.
+  const onAir = rows.some(v => v.live === "is_live");
+  const badge = el("chlive");
+  badge.hidden = !rows.length;        // nothing known yet, so claim nothing
+  badge.classList.toggle("off", !onAir);
+  badge.textContent = T(onAir ? "chan.live" : "chan.off");
+
+  el("chabout").hidden = !info.description;
+  el("chdesc").textContent = info.description || "";
+
+  tile("chsubs", info.followers != null ? thousands(info.followers) : "");
+
+  const newest = chNewest();
+  tile("chlatest", newest ? hms(newest.duration) : "",
+       newest ? newest.title : "");
+  tile("chaired", CH.when ? dmy(CH.when) : "",
+       newest && newest.views != null
+         ? thousands(newest.views) + " " + T("ch.views") : "");
+
+  // Read off this disk, not off YouTube: a file in input\ and a record in
+  // work/index.json whose output still exists. "4 / 20" is the only line on
+  // this page that answers "how much of this channel is left to do".
+  if (rows.length) {
+    const have = rows.filter(v => v.have).length;
+    const cut = rows.filter(v => v.have === "cut").length;
+    // The denominator is the number of streams FETCHED, which is whatever the
+    // picker's 10/20/100 is set to -- not the channel's total, which YouTube
+    // does not report at all. A bare "1 / 20" does not say that, and "20 out
+    // of what?" is the first thing anyone asks it, so the line underneath
+    // spells the scope out rather than leaving it to be guessed.
+    tile("chhave", have + " / " + rows.length,
+         T("chan.haveSub").replace("{n}", rows.length).replace("{c}", cut));
+  } else {
+    tile("chhave", "");
+  }
+  chCardMsg(CH.err, true);
+}
+
+// The card asks for this on load, and the sheet reuses whatever it got.
+// `fresh` is what Làm mới sends: the server holds a listing for two minutes,
+// and a refresh button that hands back a two-minute-old answer is one that
+// lies.
+async function chSync(fresh) {
+  if (CH.busy) return;
+  CH.busy = true;
+  CH.err = "";
+  chCardMsg(T("chan.loading"));
+  chNote.textContent = T("ch.loading");
+  await chChannels();
+  const limit = Number(el("chlimit").value) || 20;
+  const { ok, data } = await post("/api/channel",
+    { limit: limit, url: CH.url, fresh: !!fresh });
+  CH.busy = false;
+  if (!ok) {
+    CH.err = data.error || T("chan.failed");
+    CH.entries = CH.entries || [];
+    chNote.textContent = T("ch.failed");
+    chDrawCard();
+    return;
+  }
+  CH.info = data.info || null;
+  CH.entries = data.entries || [];
+  CH.note = data.note || "";
+  chDrawCard();
+  chRows();
+  chDate();
+}
+
+// One extra request, for one video, ever: the flat listing carries no date at
+// all, and the date of the newest finished stream is what says whether there
+// is anything new. Failure is silent -- the tile stays empty, which is what
+// it was already showing.
+async function chDate() {
+  const v = chNewest();
+  if (!v || !v.id || CH.dated === v.id) return;
+  CH.dated = v.id;
+  CH.when = 0;
+  const { ok, data } = await post("/api/video-date", { id: v.id });
+  if (ok && data.when) { CH.when = data.when; chDrawCard(); }
+}
+
+el("chsync").onclick = () => chSync(true);
+el("chall").onclick = () => { chShow(true); chRows(); };
+// Changing channel throws away everything that described the old one, so the
+// card cannot sit showing one channel's numbers under another one's name
+// while the new listing is on its way.
+chPick.onchange = () => {
+  CH.url = chPick.value;
+  CH.info = null; CH.entries = null; CH.dated = ""; CH.when = 0;
+  chDrawCard();
+  chSync(false);
+};
 
 document.getElementById("chopen").onclick = async () => {
   chShow(true);
-  await chChannels();
-  chLoad();
+  if (CH.entries) chRows(); else await chSync(false);
 };
-document.getElementById("chclose").onclick = () => chShow(false);
-document.getElementById("chload").onclick = () => chLoad();
-document.getElementById("chlimit").onchange = () => chLoad();
-chChan.onchange = () => chLoad();
+el("chclose").onclick = () => chShow(false);
+el("chload").onclick = () => chSync(true);
+el("chlimit").onchange = () => chSync(false);
+el("chnew").onchange = () => chRows();
 chModal.addEventListener("click", e => { if (e.target === chModal) chShow(false); });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && !chModal.hidden) chShow(false);
 });
 
-async function chLoad() {
-  const limit = document.getElementById("chlimit").value;
-  chNote.textContent = "đang lấy danh sách…";
-  chList.innerHTML = "";
-  const { ok, data } = await post("/api/channel",
-                                  { limit: Number(limit), url: chChan.value });
-  if (!ok) { chNote.textContent = data.error || "không lấy được"; return; }
-  const rows = data.entries || [];
-  chNote.textContent = rows.length + " video";
+const HAVE = { cut: ["cut", "have.cut"], downloaded: ["dl", "have.dl"] };
+
+function chRows() {
+  el("chwho").textContent = (CH.info && CH.info.handle) ||
+    ((CHANS.find(c => c.url === CH.url) || {}).name || "");
+  const all = CH.entries || [];
+  if (!all.length) { chList.innerHTML = ""; return; }
+  const onlyNew = el("chnew").checked;
+  const rows = onlyNew ? all.filter(v => !v.have) : all;
+  chNote.textContent = Tn("ch.count", rows.length);
   chList.innerHTML = rows.map(v => {
     const live = v.live === "is_live" || v.live === "is_upcoming";
-    const meta = [live ? "ĐANG PHÁT" : hms(v.duration),
-                  v.views != null ? thousands(v.views) + " view" : ""]
-                 .filter(Boolean).join("   \u00b7   ");
-    return '<div class="vid' + (live ? " live" : "") + '">' +
+    const mark = HAVE[v.have] || ["", ""];
+    const meta = [live ? T("ch.live") : hms(v.duration),
+                  v.views != null ? thousands(v.views) + " " + T("ch.views") : ""]
+                 .filter(Boolean).join("   ·   ");
+    return '<div class="vid' + (live ? " live" : "") +
+        (v.have ? " done" : "") + '">' +
       '<img loading="lazy" src="' + esc(v.thumb) + '" alt="">' +
-      '<div class="body"><div class="t">' + esc(v.title) + "</div>" +
+      '<div class="body"><div class="t"><span>' + esc(v.title) + "</span>" +
+      (mark[1] ? '<span class="have ' + mark[0] + '">' + esc(T(mark[1])) +
+                 "</span>" : "") +
+      "</div>" +
       '<div class="m">' + esc(meta) + '<span id="d-' + esc(v.id) + '"></span></div>' +
       '<div class="acts">' +
-      (live ? '<span class="m">chưa kết thúc, không tải được</span>'
-            : '<button class="small" data-use="' + esc(v.url) + '">Dùng link này</button>' +
-              '<button class="small" data-cl="' + esc(v.url) + '">Copy link</button>' +
-              '<button class="small" data-vd="' + esc(v.id) + '">Ngày phát</button>') +
+      (live ? '<span class="m">' + esc(T("ch.notdone")) + "</span>"
+            : '<button class="small" data-use="' + esc(v.url) + '">' +
+                esc(T("btn.useLink")) + "</button>" +
+              '<button class="small" data-cl="' + esc(v.url) + '">' +
+                esc(T("btn.copyLink")) + "</button>" +
+              '<button class="small" data-vd="' + esc(v.id) + '">' +
+                esc(T("btn.date")) + "</button>" +
+              (v.output ? '<button class="small" data-outfile="' +
+                          esc(v.output) + '">' + esc(T("btn.openCut")) +
+                          "</button>" : "")) +
       "</div></div></div>";
-  }).join("") || '<div class="vid"><span class="m">Kênh này chưa có stream nào.</span></div>';
+  }).join("") ||
+    '<div class="vid"><span class="m">' +
+    esc(T(onlyNew ? "ch.allDone" : "ch.empty")) + "</span></div>";
 }
 
 document.addEventListener("click", async e => {
@@ -1554,10 +1750,15 @@ document.addEventListener("click", async e => {
   const cl = e.target.closest("[data-cl]");
   if (cl) {
     const was = cl.textContent;
-    cl.textContent = (await copyText(cl.dataset.cl)) ? "Đã copy" : "Không copy được";
+    cl.textContent = T(await copyText(cl.dataset.cl) ? "copy.ok" : "copy.fail");
     setTimeout(() => { cl.textContent = was; }, 1500);
     return;
   }
+  // Straight to the finished video in Explorer. It is the natural next move
+  // once a row says ĐÃ CẮT, and without it the name has to be carried across
+  // to the folder list and found by eye.
+  const out = e.target.closest("[data-outfile]");
+  if (out) { reveal("output", out.dataset.outfile); return; }
   const vd = e.target.closest("[data-vd]");
   if (vd) {
     const id = vd.dataset.vd;
@@ -1565,17 +1766,24 @@ document.addEventListener("click", async e => {
     const { ok, data } = await post("/api/video-date", { id: id });
     const slot = document.getElementById("d-" + id);
     if (ok && data.when) {
-      if (slot) slot.textContent = "   \u00b7   phát " + stamp(data.when);
+      if (slot) slot.textContent = "   ·   " + T("ch.aired") + " " +
+                                   stamp(data.when);
       vd.remove();
     } else {
-      vd.textContent = "không lấy được";
+      vd.textContent = T("ch.dateFail");
     }
   }
 });
-
 applyLang();
 refresh();
 setInterval(refresh, 1000);
+// The channel card fills itself once, in the background, and deliberately NOT
+// on the one-second poll: everything else on this page is read off this
+// machine, and this is the only line that goes out to YouTube. It runs after
+// the first refresh so the page is already usable when it arrives, and a
+// failure leaves a note on the card rather than an empty page -- offline, the
+// tool still cuts what is in input\.
+chSync(false);
 </script>
 </body>
 </html>
@@ -1627,3 +1835,61 @@ def _check_markup():
 
 
 _check_markup()
+
+def _check_hidden():
+    """An element the script hides must not be given a `display` by the CSS.
+
+    `hidden` works by a UA rule of `[hidden] { display: none }`, which any
+    author rule setting `display` on the same element beats -- so the element
+    stays on screen while every line of script insists it is hidden. Nothing
+    catches that: the HTML is valid, the CSS is valid, the script is right,
+    and the page renders, wrongly.
+
+    It has now shipped twice. First on `.modal`, which showed the channel
+    sheet on load; the fix was a `.modal[hidden]` rule with a comment beside
+    it, and the comment was not enough to stop the second one. `.live` then
+    did the same thing on the channel card, announcing a live stream at all
+    times -- including before any listing had arrived, and for a channel that
+    was not streaming at all.
+
+    So this is the rule rather than the comment: for every class or id the
+    markup hides, if some rule sets `display` on it there must be a matching
+    `[hidden]` rule putting it back.
+    """
+    css = re.search(r"<style>(.*?)</style>", _HTML, re.S).group(1)
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)    # comments say things
+
+    # Every class and id the markup ever hides.
+    hidden = set()
+    for tag in re.findall(r"<\w+[^>]*>", _HTML):
+        if not re.search(r"[\s\"']hidden[\s>]", tag):
+            continue
+        for attr, mark in (("id", "#"), ("class", ".")):
+            found = re.search(r'\b%s="([^"]*)"' % attr, tag)
+            if found:
+                hidden.update(mark + tok for tok in found.group(1).split())
+
+    # Innermost rules only, so @media and @keyframes cannot be mistaken for
+    # selectors of their own.
+    setters, guards = set(), set()
+    for selectors, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        if not re.search(r"(^|[;\s])display\s*:", body):
+            continue
+        for sel in selectors.split(","):
+            tokens = set(re.findall(r"[.#][A-Za-z0-9_-]+", sel))
+            if "[hidden]" in sel:
+                if re.search(r"display\s*:\s*none", body):
+                    guards |= tokens
+            else:
+                setters |= tokens
+
+    unguarded = sorted((hidden & setters) - guards)
+    if unguarded:
+        raise ValueError(
+            "these are hidden in the markup but given a `display` by the CSS, "
+            "which beats the browser's [hidden] rule and leaves them on screen "
+            "for ever -- each needs its own `[hidden] { display: none }`: "
+            f"{unguarded}")
+
+
+_check_hidden()
