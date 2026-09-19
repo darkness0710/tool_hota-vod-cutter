@@ -1,10 +1,10 @@
 """Download a VOD from a URL into input/, ready for the normal pipeline.
 
-The detector reads fixed pixel coordinates out of a 1920x1080 frame, so the
-format choice is not cosmetic: a 720p download would put every overlay in the
-wrong place and produce a confidently wrong cut. This asks for 1080p H.264 plus
-AAC, and refuses anything that does not come back at 1920x1080 rather than
-handing the pipeline a file it will silently misread.
+Capped at 1080p, which is now a choice about size rather than a requirement:
+the detector scales any 16:9 source to its reference frame, so a 1440p VOD
+cuts correctly -- it just costs about twice the bytes and the render time for
+a picture nobody is going to inspect frame by frame. Raise the cap here if
+that trade stops being worth it.
 """
 import collections
 import os
@@ -15,6 +15,7 @@ import threading
 import time
 
 from . import aria2, jsruntime
+from . import ffmpeg
 from .ffmpeg import FF
 
 # Match the reference VOD: H.264 video and AAC audio in mp4, capped at 1080p.
@@ -64,14 +65,12 @@ def _safe(name, limit=70):
 
 
 def probe_size(path):
-    """(width, height) of a media file, or None."""
-    # utf-8 explicitly: the banner carries the Vietnamese title, and the
-    # Windows codepage cannot decode it. See tlh/ffmpeg.py duration().
-    err = subprocess.run([FF, "-hide_banner", "-t", "0.1", "-i", path, "-f", "null", "-"],
-                         capture_output=True, text=True,
-                         encoding="utf-8", errors="replace").stderr or ""
-    m = re.search(r"Video:.*?, (\d{2,5})x(\d{2,5})", err)
-    return (int(m.group(1)), int(m.group(2))) if m else None
+    """(width, height) of a media file, or None.
+
+    Lives in tlh/ffmpeg.py now, because the detector needs it too: it reads
+    the source size to decide whether to scale the frame before cropping.
+    """
+    return ffmpeg.size(path)
 
 
 # yt-dlp leaves these behind for a download it can pick up again.
@@ -339,10 +338,11 @@ def download(url, dest, log=print, workroot=None, live=False):
 
     size = probe_size(path)
     if size and size != (1920, 1080):
-        log(f"  WARNING: got {size[0]}x{size[1]}, not 1920x1080. Every overlay "
-            "coordinate in tlh/config.py assumes 1080p, so the cut would be "
-            "wrong. Delete this file and fetch a 1080p version, or re-derive "
-            "the coordinates with tools/inspect_frames.py grid.")
+        log(f"  NOTE: got {size[0]}x{size[1]}, not 1920x1080. The detector "
+            "scales any 16:9 source to its reference frame, so this still "
+            "cuts correctly and the output keeps this size -- but it is not "
+            "what FORMAT asked for, so check the connection did not fall back "
+            "to a lower quality than you wanted.")
     log("")
     log(f"  Downloaded  {path}")
     log(f"  File size   {_gib(os.path.getsize(path))}")

@@ -27,14 +27,16 @@ import numpy as np
 from . import config as C
 from .ffmpeg import grab, hms
 
-# Frame geometry every rectangle here is clamped to. Same assumption as the
-# rest of config.py, restated because this module clamps against it directly.
-FRAME_W, FRAME_H = 1920, 1080
+# Everything here works in the SOURCE's own pixels, not the reference frame
+# the detector uses. The rectangle it produces is handed to the renderer, which
+# never rescales the video, so it has to be in the coordinates the renderer
+# will paint in. Detection needs no reference size of its own: a QR is found by
+# its own geometry at whatever size it is drawn.
 
 HEARTBEAT = 5.0         # seconds between progress lines while scrubbing
 
 
-def _card(gray, box):
+def _card(gray, box, frame):
     """Grow a QR box out to the white card it is printed on.
 
     The card is the code's white quiet zone, a little larger than the modules
@@ -66,9 +68,10 @@ def _card(gray, box):
     as a check on this function.
     """
     x, y, w, h = box
+    fw, fh = frame
     pad = 80
     x0, y0 = max(0, x - pad), max(0, y - pad)
-    x1, y1 = min(FRAME_W, x + w + pad), min(FRAME_H, y + h + pad)
+    x1, y1 = min(fw, x + w + pad), min(fh, y + h + pad)
     white = gray > 200
 
     def run(profile, lo, hi):
@@ -88,7 +91,7 @@ def _card(gray, box):
     return x0 + ca, y0 + ra, cb - ca + 1, rb - ra + 1
 
 
-def _grow(box, factor):
+def _grow(box, factor, frame):
     """Scale a box about its own centre, clamped to the frame.
 
     Even x/y/w/h, because the source is yuv420p and ffmpeg rounds an odd crop
@@ -96,17 +99,20 @@ def _grow(box, factor):
     white seam along the edge of the cover.
     """
     x, y, w, h = box
+    fw, fh = frame
     cx, cy = x + w / 2.0, y + h / 2.0
     w, h = w * factor, h * factor
     x0 = max(0, int(cx - w / 2)) // 2 * 2
     y0 = max(0, int(cy - h / 2)) // 2 * 2
-    x1 = min(FRAME_W, int(cx + w / 2) + 1) // 2 * 2
-    y1 = min(FRAME_H, int(cy + h / 2) + 1) // 2 * 2
+    x1 = min(fw, int(cx + w / 2) + 1) // 2 * 2
+    y1 = min(fh, int(cy + h / 2) + 1) // 2 * 2
     return x0, y0, x1 - x0, y1 - y0
 
 
-def find(video, dur, progress=print):
-    """Rectangle to paint over, as (x, y, w, h). Never returns None.
+def find(video, dur, frame, progress=print):
+    """Rectangle to paint over, as (x, y, w, h) in `frame` pixels.
+
+    Never returns None.
 
     Samples across the WHOLE video rather than the opening minutes: a stream
     opens on a "starting soon" card or the HotA lobby, where the overlay may
@@ -115,19 +121,37 @@ def find(video, dur, progress=print):
     """
     step = dur / (C.QR_SAMPLES + 1)
     for k in range(1, C.QR_SAMPLES + 1):
-        frame = grab(video, step * k)
-        if frame is None:
+        # At the source's own size. grab() defaults to 1920x1080 and sizes its
+        # read buffer from that, so a 2560x1440 frame came back as a stride's
+        # worth of the wrong bytes -- on which the detector duly "found" a
+        # 738x794 QR and the renderer painted the logo across the middle of
+        # the game while the real code sat untouched at the edge.
+        shot = grab(video, step * k, size=frame)
+        if shot is None:
             continue
-        ok, pts = cv2.QRCodeDetector().detect(frame)
+        det = cv2.QRCodeDetector()
+        ok, pts = det.detect(shot)
         if not ok:
+            continue
+        # DECODING is the proof, not detecting. detect() returns a quad for
+        # things that are not codes at all -- measured on a scrubbed file it
+        # claimed one on 3 of 30 frames where the code had been painted over --
+        # and this loop returns on the first hit, so one false positive early
+        # on wins over every real code after it. On a 2560x1440 file that put
+        # the cover at 1030x604 in the middle of the game while the real code
+        # sat untouched at 2383,604. A payload cannot be hallucinated.
+        try:
+            if not det.decode(shot, pts)[0]:
+                continue
+        except cv2.error:
             continue
         p = pts.reshape(-1, 2)
         box = (int(p[:, 0].min()), int(p[:, 1].min()),
                int(p[:, 0].max() - p[:, 0].min()),
                int(p[:, 1].max() - p[:, 1].min()))
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        card = _card(gray, box)
-        rect = _grow(card, C.QR_BUFFER)
+        gray = cv2.cvtColor(shot, cv2.COLOR_BGR2GRAY)
+        card = _card(gray, box, frame)
+        rect = _grow(card, C.QR_BUFFER, frame)
         progress(f"        QR found at {box[0]},{box[1]} {box[2]}x{box[3]}"
                  f"  -> card {card[2]}x{card[3]}"
                  f"  -> covering {rect[2]}x{rect[3]} at {rect[0]},{rect[1]}")
@@ -140,7 +164,11 @@ def find(video, dur, progress=print):
     # choice for a privacy cover, and it was the recommendation; continuing
     # with a blind rectangle is the owner's call, on the grounds that a
     # too-large cover costs nothing but a hidden QR costs everything.
-    rect = _grow(C.QR_CARD, C.QR_BUFFER_BLIND)
+    # C.QR_CARD is measured in C.REF, so on any other frame it has to be
+    # scaled before it means anything.
+    ratio = frame[0] / C.REF[0]                 # not k: that is the loop index
+    blind = tuple(int(v * ratio) for v in C.QR_CARD)
+    rect = _grow(blind, C.QR_BUFFER_BLIND, frame)
     progress(f"        WARNING: no QR decoded in {C.QR_SAMPLES} samples. "
              f"Covering the usual corner blind, with the wider "
              f"{C.QR_BUFFER_BLIND}x margin: {rect[2]}x{rect[3]} at "
@@ -162,7 +190,7 @@ def scrub(src, dst, progress=print):
     duration already known is exact.
     """
     from . import encoder                       # local: pulls in probing
-    from .ffmpeg import FF, duration
+    from .ffmpeg import FF, duration, size as ffmpeg_size
 
     # Checked here rather than left to ffmpeg. Missing, it fails as an input
     # error from a command line the reader never typed, halfway down a log --
@@ -172,7 +200,8 @@ def scrub(src, dst, progress=print):
         return 1
 
     total = duration(str(src)) or 0.0
-    rect = find(str(src), total, progress=progress)
+    frame = ffmpeg_size(str(src)) or C.REF
+    rect = find(str(src), total, frame, progress=progress)
     x, y, w, h = rect
     codec, qflag = encoder.detect(log=progress)
     cmd = ([FF, "-v", "error", "-progress", "pipe:1", "-nostats",

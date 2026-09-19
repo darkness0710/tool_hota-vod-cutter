@@ -5,12 +5,26 @@ logic in the other modules does not hardcode any geometry. Rebuild the
 reference crops with `tools/make_templates.py` and check coordinates with
 `tools/inspect_frames.py grid`.
 
-All coordinates assume a 1920x1080 frame.
+All coordinates are measured in REF below. A source of another size is
+scaled to REF for detection, so they hold whatever the video's own size
+is -- the render never rescales, and the output keeps that size.
 """
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
+
+# ------------------------------------------------------------ frame size ----
+# The frame every coordinate in this file is measured against. A source of a
+# different size is scaled to this for DETECTION ONLY -- the render keeps the
+# original pixels, so a 1440p VOD comes out 1440p.
+REF = (1920, 1080)
+# How far from 16:9 a source may be and still be scaled to REF. Scaling is a
+# plain resize, not a fit: a 21:9 stream squeezed into 1920x1080 would be
+# distorted and no coordinate would land where it should, so it is refused and
+# named rather than quietly mangled. 0.02 passes 1920x1080, 2560x1440,
+# 1280x720 and 3840x2160, and stops 2560x1080 (2.37) and 1920x1200 (1.60).
+AR_TOL = 0.02
 
 # ------------------------------------------------------------- sampling ----
 SR = 2.0            # signal samples per second. The H2H clocks tick at 1 Hz, so

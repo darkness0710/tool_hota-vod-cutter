@@ -10,7 +10,7 @@ from . import render as render_mod
 from . import naming, qrcover, screens, segments as seg_mod
 from . import signal as signal_mod
 from . import timeline
-from .ffmpeg import duration, hms
+from .ffmpeg import duration, hms, scale_to, size as probe_size
 
 
 def _log(*args):
@@ -19,7 +19,7 @@ def _log(*args):
     print(*args, flush=True)
 
 
-def _signal_fingerprint():
+def _signal_fingerprint(prescale=""):
     """Identity of everything that changes what the signal pass produces.
 
     Cached signal is reused only when this matches, so editing a coordinate in
@@ -36,18 +36,21 @@ def _signal_fingerprint():
     # The column layout belongs in here. Without it, removing a column left the
     # old wider array passing the check and being read with the new indices --
     # harmless only because the dropped columns happened to be last.
-    return repr((signal_mod.COLUMNS,
+    # prescale belongs in here even though a video's size never changes: a
+    # cache written before the detector learned to scale holds numbers read at
+    # the wrong stride, and nothing else in this tuple would notice.
+    return repr((signal_mod.COLUMNS, prescale,
                  C.SR, C.CLK, C.UPPER_BAND, C.LOWER_BAND, C.NAME_L, C.NAME_R,
                  C.DAY, C.DIGIT_X, C.DIGIT_Y, C.GLYPH_H, C.GLYPH_W_MIN,
                  C.SPELL_L, C.SPELL_R, tuple(stamps)))
 
 
-def _load_signal(path):
+def _load_signal(path, prescale=""):
     if not os.path.exists(path):
         return None
     try:
         blob = np.load(path, allow_pickle=False)
-        if str(blob["fingerprint"]) != _signal_fingerprint():
+        if str(blob["fingerprint"]) != _signal_fingerprint(prescale):
             return None
         return blob["sig"]
     except Exception:
@@ -66,11 +69,35 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     """
     os.makedirs(workdir, exist_ok=True)
     dur = duration(video)
+
+    # Read the source size ONCE, here, and tell the reader what it is. Every
+    # coordinate in config.py is measured in C.REF, so anything else is scaled
+    # to C.REF for detection -- and only for detection: the render never
+    # rescales, so a 1440p VOD comes out 1440p.
+    #
+    # This used to be checked only on the download path, which meant a file
+    # dropped into input/ by hand was never measured at all. A 1440p one then
+    # read zero clocks, zero name plates and zero day counters, cut nothing,
+    # and the only clue was a warning about the clock coordinates.
+    frame = probe_size(video) or tuple(C.REF)
+    prescale = scale_to(frame, C.REF)
+    if tuple(frame) != tuple(C.REF):
+        ar, ref_ar = frame[0] / frame[1], C.REF[0] / C.REF[1]
+        if abs(ar - ref_ar) > C.AR_TOL:
+            log(f"    frame     {frame[0]}x{frame[1]}   ty le {ar:.2f}")
+            log(f"    Khung hinh nay khong phai 16:9. Thu nho ve "
+                f"{C.REF[0]}x{C.REF[1]} se lam meo hinh va khong toa do nao "
+                "con dung, nen file nay bi tu choi thay vi cat sai.")
+            return 2
     signal_s = dur / C.RATE_SIGNAL
     screens_s = dur * C.RATE_SCREENS
     render_s = 0.0 if dry_run else dur * C.KEEP_GUESS / C.RATE_RENDER
     log(f"    file      {os.path.basename(video)}")
     log(f"    length    {hms(dur)}")
+    log(f"    frame     {frame[0]}x{frame[1]}"
+        + ("" if not prescale else
+           f"   (thu nho ve {C.REF[0]}x{C.REF[1]} de do toa do;"
+           f" video ra van {frame[0]}x{frame[1]})"))
     log(f"    output    {os.path.basename(out)}" + ("  (dry run: not written)"
                                                     if dry_run else ""))
     log(f"    estimate  about {int((signal_s + screens_s + render_s) / 60)} min"
@@ -84,11 +111,13 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
         log(f"  [{hms(time.time() - started)}] {text}")
 
     cache = os.path.join(workdir, "signal.npz")
-    sig = _load_signal(cache) if reuse_signal else None
+    sig = _load_signal(cache, prescale) if reuse_signal else None
     if sig is None:
         stage("[1/4] clock + seat signal")
-        sig = signal_mod.extract(video, dur, workers, progress=log)
-        np.savez_compressed(cache, sig=sig, fingerprint=_signal_fingerprint())
+        sig = signal_mod.extract(video, dur, workers, progress=log,
+                                 prescale=prescale)
+        np.savez_compressed(cache, sig=sig,
+                            fingerprint=_signal_fingerprint(prescale))
     else:
         stage(f"[1/4] clock + seat signal (reusing cached signal)")
     t, widget, seat, mine, theirs = signal_mod.interpret(sig)
@@ -122,9 +151,11 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
     cand, both_frozen = seg_mod.candidate_spans(t, widget, mine, theirs)
     stage("[2/4] lobby / menu / reconnect screens")
-    dead_t = screens.dead_screens(video, cand, workers, progress=log)
+    dead_t = screens.dead_screens(video, cand, workers, progress=log,
+                                  prescale=prescale)
     stage("[3/4] map vs combat while both clocks are frozen")
-    map_t = screens.map_showing(video, both_frozen, workers, progress=log)
+    map_t = screens.map_showing(video, both_frozen, workers, progress=log,
+                                prescale=prescale)
 
     segs, stats = seg_mod.build(t, widget, mine, theirs, dead_t, map_t, dur)
     kept = sum(b - a for a, b in segs)
@@ -168,7 +199,8 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     # code on its own.
     cover = None
     if C.QR_COVER.exists():
-        cover = (C.QR_COVER,) + qrcover.find(video, dur, progress=log)
+        cover = (C.QR_COVER,) + qrcover.find(video, dur, frame,
+                                            progress=log)
     else:
         log(f"        no cover image at {C.QR_COVER}, QR left visible")
 

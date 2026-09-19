@@ -47,8 +47,15 @@ def _line_hue(hue, ink, floor=60):
     return float(hue[lit].mean()) if lit.any() else 0.0
 
 
-def _filter():
-    """Build the filter graph and the size of its output frame."""
+def _filter(prescale=""):
+    """Build the filter graph and the size of its output frame.
+
+    `prescale` is a scale filter, or "", put in front of every crop. Every
+    coordinate below is measured in C.REF, so a source of another size is
+    brought to C.REF first and the crops then land where they were measured.
+    Scaling once at the head of the graph rather than per branch: split comes
+    after it, so the six crops share the one resize.
+    """
     cx, cy, cw, chh = C.CLK
     lx, ly, lw, lh = C.NAME_L
     rx, ry, rw, rh = C.NAME_R
@@ -71,7 +78,7 @@ def _filter():
 
     w = lw + rw                                 # the widest row sets the frame
     graph = (
-        f"[0:v]fps={C.SR},split=6[a][b][c][d][e][f];"
+        f"[0:v]{prescale}fps={C.SR},split=6[a][b][c][d][e][f];"
         f"[a]crop={cw}:{chh}:{cx}:{cy},pad={w}:{chh}:0:0:black[clk];"
         f"[b]crop={lw}:{lh}:{lx}:{ly}[nl];"
         f"[c]crop={rw}:{rh}:{rx}:{ry}[nr];"
@@ -125,7 +132,7 @@ def _best_match(window, pyramid):
 
 def _chunk(job):
     """Signal rows for one time range. Runs in a worker process."""
-    video, start, dur, seen, slot = job
+    video, start, dur, seen, slot, prescale = job
     tpl_name = cv2.imread(str(C.TEMPLATES / "tieulinh_name.png"), cv2.IMREAD_GRAYSCALE)
     if tpl_name is None:
         raise FileNotFoundError(C.TEMPLATES / "tieulinh_name.png")
@@ -142,15 +149,18 @@ def _chunk(job):
                                 min(C.SPELL_L[2], C.SPELL_R[2]), C.SPELL_SCALES)
                  for side, img in tpl_spell.items()}
 
-    graph, size = _filter()
+    graph, size = _filter(prescale)
     band = _rows()
     lw, slw = C.NAME_L[2], C.SPELL_L[2]
     dw = C.DAY[2]
-    pre = 1.0 if start > 0 else 0.0             # overlap so the first diff is real
+    # Seconds of lead-in, NOT the scale filter above -- which is why that one
+    # is called prescale. They were both `pre` for three lines and only worked
+    # because the filter happened to be read first.
+    lead = 1.0 if start > 0 else 0.0             # overlap so the first diff is real
     every = int(C.SR * 5)                       # name-template cadence, in samples
 
     rows, prev, i = [], None, 0
-    for frame in frames(video, start - pre, dur + pre, size, filter_complex=graph):
+    for frame in frames(video, start - lead, dur + lead, size, filter_complex=graph):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         y0, y1 = band["clock"]
@@ -175,7 +185,7 @@ def _chunk(job):
         c_up = _line_hue(hue[C.UPPER_BAND], up)
         c_lo = _line_hue(hue[C.LOWER_BAND], lo)
 
-        t = start - pre + i / C.SR
+        t = start - lead + i / C.SR
         d_up = d_lo = 0
         if prev is not None:
             d_up = int((np.abs(up - prev[0]) > 60).sum())
@@ -218,8 +228,12 @@ def _chunk(job):
 HEARTBEAT = 15.0        # seconds between progress lines while chunks are in flight
 
 
-def extract(video, dur, workers=4, progress=print):
-    """Signal table for the whole video, one row per sample; see COLUMNS."""
+def extract(video, dur, workers=4, progress=print, prescale=""):
+    """Signal table for the whole video, one row per sample; see COLUMNS.
+
+    `prescale` comes from the caller, which has probed the source already:
+    probing once beats probing in every worker, and the answer cannot differ.
+    """
     step = max(300.0, dur / max(1, workers * 2))
     started = time.time()
     # Workers report how much video they have decoded into a shared counter.
@@ -230,7 +244,7 @@ def extract(video, dur, workers=4, progress=print):
     # shareable by inheritance -- so this is a Manager dict, one key per chunk.
     manager = Manager()
     seen = manager.dict()
-    jobs = [(video, float(s), float(min(step, dur - s)), seen, k)
+    jobs = [(video, float(s), float(min(step, dur - s)), seen, k, prescale)
             for k, s in enumerate(np.arange(0, dur, step))]
     rows = []
     with ProcessPoolExecutor(workers) as pool:
@@ -255,7 +269,7 @@ def extract(video, dur, workers=4, progress=print):
             "the signal pass decoded no frames. The filter graph was most "
             "likely rejected; run one chunk on its own to see what ffmpeg "
             "says: python -c \"from tlh.signal import _chunk; "
-            "_chunk((r'VIDEO', 0, 30, None, 0))\"")
+            "_chunk((r'VIDEO', 0, 30, None, 0, ''))\"")
     rows.sort(key=lambda r: r[0])
     return np.array(rows, dtype=float)
 

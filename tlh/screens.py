@@ -48,7 +48,7 @@ def _chunks(spans, chunk=CHUNK):
     return out
 
 
-def _sweep(video, spans, worker, workers, progress, label):
+def _sweep(video, spans, worker, workers, progress, label, prescale=""):
     """Run `worker` over `spans` in parallel, reporting real progress.
 
     Progress is counted in SECONDS OF VIDEO checked, not jobs finished, and
@@ -61,7 +61,8 @@ def _sweep(video, spans, worker, workers, progress, label):
     total = sum(b - a for a, b in jobs) or 1.0
     rows, done, last = [], 0.0, 0.0
     with ProcessPoolExecutor(workers) as pool:
-        pending = {pool.submit(worker, (video, a, b)): (a, b) for a, b in jobs}
+        pending = {pool.submit(worker, (video, a, b, prescale)): (a, b)
+                   for a, b in jobs}
         progress(f"    {label}   0%   0:00:00 of {hms(total)} to check")
         for future in as_completed(pending):
             a, b = pending[future]
@@ -77,7 +78,7 @@ def _sweep(video, spans, worker, workers, progress, label):
 
 def _dead_chunk(job):
     """Best dead-screen template score per second over one stretch."""
-    video, a, b = job
+    video, a, b, prescale = job
     tpl = {}
     for name in C.DEAD_REG:
         img = cv2.imread(str(C.TEMPLATES / f"{name}.png"), cv2.IMREAD_GRAYSCALE)
@@ -86,7 +87,13 @@ def _dead_chunk(job):
         tpl[name] = img
 
     rows = []
-    for i, frame in enumerate(frames(video, a, b - a, (1920, 1080), vf="fps=1")):
+    # The scale is not optional for a source that is not already C.REF: the
+    # frame size below is what the reader uses as its stride, so without it a
+    # 2560x1440 stream was read 1920x1080 bytes at a time and every "frame"
+    # straddled two real ones. That failed silently -- it produced pixels, just
+    # not the right ones.
+    for i, frame in enumerate(frames(video, a, b - a, C.REF,
+                                     vf=f"{prescale}fps=1")):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         best = 0.0
         for name, (y0, y1, x0, x1) in C.DEAD_REG.items():
@@ -100,11 +107,12 @@ def _dead_chunk(job):
     return rows
 
 
-def dead_screens(video, spans, workers=4, progress=print):
+def dead_screens(video, spans, workers=4, progress=print, prescale=""):
     """Timestamps (1 s resolution) inside `spans` that show a dead screen."""
     if not spans:
         return np.zeros(0)
-    rows = _sweep(video, spans, _dead_chunk, workers, progress, "screens")
+    rows = _sweep(video, spans, _dead_chunk, workers, progress, "screens",
+                  prescale)
     if not rows:
         return np.zeros(0)
     arr = np.array(rows, dtype=float)
@@ -113,17 +121,19 @@ def dead_screens(video, spans, workers=4, progress=print):
 
 def _bar_chunk(job):
     """Bottom-bar blue-minus-red per sample over one stretch."""
-    video, a, b = job
+    video, a, b, prescale = job
     x, y, w, h = C.BAR
     rows = []
+    # Scale BEFORE the crop: C.BAR is measured in C.REF like everything else.
     for i, frame in enumerate(frames(video, a, b - a, (w, h),
-                                     vf=f"crop={w}:{h}:{x}:{y},fps={C.SR}")):
+                                     vf=f"{prescale}crop={w}:{h}:{x}:{y},"
+                                        f"fps={C.SR}")):
         f = frame.astype(np.int16)
         rows.append((a + i / C.SR, float(f[:, :, 0].mean() - f[:, :, 2].mean())))
     return rows
 
 
-def map_showing(video, spans, workers=4, progress=print):
+def map_showing(video, spans, workers=4, progress=print, prescale=""):
     """Timestamps inside `spans` where the adventure map is on screen.
 
     Used only where both clocks are frozen: the map being up means Tieulinh is
@@ -131,7 +141,8 @@ def map_showing(video, spans, workers=4, progress=print):
     """
     if not spans:
         return np.zeros(0)
-    rows = _sweep(video, spans, _bar_chunk, workers, progress, "map vs combat")
+    rows = _sweep(video, spans, _bar_chunk, workers, progress, "map vs combat",
+                  prescale)
     if not rows:
         return np.zeros(0)
     arr = np.array(rows, dtype=float)

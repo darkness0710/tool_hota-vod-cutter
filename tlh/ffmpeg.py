@@ -3,6 +3,7 @@
 The ffmpeg binary comes from imageio-ffmpeg so there is nothing to install
 separately and no PATH dependency.
 """
+import re
 import subprocess
 
 import imageio_ffmpeg
@@ -37,6 +38,25 @@ def duration(video):
             h, m, s = stamp.split(":")
             return int(h) * 3600 + int(m) * 60 + float(s)
     raise RuntimeError(f"could not read duration of {video}")
+
+
+def size(video):
+    """(width, height) of a video, or None if the header cannot be read."""
+    err = subprocess.run(
+        [FF, "-hide_banner", "-t", "0.1", "-i", video, "-f", "null", "-"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace").stderr or ""
+    m = re.search(r"Video:.*?, (\d{2,5})x(\d{2,5})", err)
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def scale_to(src, ref):
+    """Filter prefix that brings `src` to `ref`, or "" when it already is.
+
+    Returned with its trailing comma so a caller can paste it in front of a
+    filter chain without having to decide whether one is needed.
+    """
+    return "" if tuple(src) == tuple(ref) else f"scale={ref[0]}:{ref[1]},"
 
 
 def open_raw(video, start, dur, vf=None, filter_complex=None, size=None):
