@@ -1189,6 +1189,29 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, json.dumps({"error": "not found"}))
 
 
+class Server(ThreadingHTTPServer):
+    """ThreadingHTTPServer that does not shout when a browser hangs up.
+
+    A client closing the connection before the reply is written raises
+    ConnectionAbortedError (WinError 10053) or ConnectionResetError out of
+    wfile.write, and socketserver's default handler prints the whole traceback.
+    Nothing is wrong when that happens: the page polls /api/state every second
+    and abandons the one in flight on a reload or a tab change, and the <video>
+    element cancels a range request on every seek. The job itself is a separate
+    process and never notices.
+
+    The traceback is not merely noise, it is harmful noise: this console is
+    also where a real failure would appear, and five screens of stack for a
+    normal event teaches the reader to ignore exactly the thing they should
+    not. Only the connection family is swallowed -- anything else still prints.
+    """
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
+
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -1197,7 +1220,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     _load_jobs()
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    server = Server(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}"
     print(f"\n  tieu_linh_hota   {url}")
     print("  Ctrl+C to stop. Jobs keep running only while this window is open.\n")
