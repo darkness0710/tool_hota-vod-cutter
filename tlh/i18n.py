@@ -22,6 +22,7 @@ VI = {
     "tab.trim": "Hỗ trợ cắt ghép",
     "tab.author": "Tác giả",
     "lang.tip": "Đổi ngôn ngữ giao diện",
+    "tip.version": "Xem có gì mới trong bản này",
 
     # ---- shared buttons and tips
     "btn.open": "Mở",
@@ -261,6 +262,7 @@ EN = {
     "tab.trim": "Trim helper",
     "tab.author": "Author",
     "lang.tip": "Change the interface language",
+    "tip.version": "What is new in this build",
 
     "btn.open": "Open",
     "btn.clear": "Empty",

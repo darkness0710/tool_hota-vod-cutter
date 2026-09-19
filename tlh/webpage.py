@@ -13,6 +13,7 @@ so the page reads correctly before the script runs and if it never runs.
 import json
 import re
 
+from . import config as C
 from . import i18n
 
 _HTML = r"""<!doctype html>
@@ -41,6 +42,14 @@ _HTML = r"""<!doctype html>
   .langs button:hover { color: var(--ink); background: #1a1f27; }
   .langs button.on, .langs button.on:hover { color: #0d1117;
         background: var(--accent); }
+  /* The version, where it can be read without opening anything. It used to
+     live only inside the Version tab, which meant the one question this page
+     could not answer at a glance was which build you were looking at. */
+  .vertag { flex: none; align-self: center; padding: 4px 11px;
+            background: none; border: 1px solid var(--line); border-radius: 8px;
+            color: var(--dim); font: inherit; font-size: 12px;
+            font-weight: 700; cursor: pointer; }
+  .vertag:hover { color: var(--accent); border-color: var(--accent); }
   h1 { font-size: 19px; margin: 0 0 2px; }
   h1 a { color: var(--accent); font-weight: 400; font-size: 15px;
          text-decoration: none; }
@@ -269,11 +278,13 @@ _HTML = r"""<!doctype html>
   /* The current release, marked on the ROW rather than by the pill alone.
      A pill is a label you have to read; a tinted band with a bar down its
      edge is one you see before reading anything, which is the whole job of
-     this tab -- somebody opens it to find out what they are running.
+     this tab. A tinted band across the row was tried and taken back out: at
+     this size it read as a selected row in a table, as though it were
+     something to act on. The bar and the colour on the number say the same
+     thing without that.
      The transparent border sits on every dt so the text does not shift by
      three pixels between the current row and the rest. */
   .rel dt.now { border-left-color: var(--accent); }
-  .rel dt.now, .rel dd.now { background: rgba(90, 169, 230, .07); }
   .rel dt.now b { color: var(--accent); }
   .rel dt b { color: var(--ink); font-size: 16px; font-weight: 600; }
   /* A quiet pill, not a filled one: it labels a row, it is not a control, and
@@ -311,6 +322,8 @@ _HTML = r"""<!doctype html>
   <div class="head">
     <h1><span data-t="head.title">Cắt VOD stream từ kênh</span>
       <a href="https://www.youtube.com/@TieulinhHOTA" target="_blank" rel="noreferrer">https://www.youtube.com/@TieulinhHOTA</a></h1>
+    <button class="vertag" data-gotab="ver" data-tt="tip.version"
+      title="Xem có gì mới trong bản này">v__VERSION__</button>
     <div class="langs" data-tt="lang.tip" title="Đổi ngôn ngữ giao diện">
       <button data-lang="vi" class="on">VI</button>
       <button data-lang="en">EN</button>
@@ -508,7 +521,7 @@ _HTML = r"""<!doctype html>
   <h2 data-t="h2.ver">Phiên bản</h2>
   <div class="card">
     <dl class="rel">
-      <dt class="now"><b>3.0</b> <span class="tag"
+      <dt class="now"><b>__VERSION__</b> <span class="tag"
         data-t="ver.current">hiện tại</span></dt>
       <dd class="now" data-th="ver.3.0.d"><ul>
         <li>Cắt được video ở mọi độ phân giải 16:9 &mdash; 720p, 1080p, 1440p.
@@ -997,6 +1010,13 @@ document.addEventListener("click", async e => {
     const leaf = job.output ? job.output.split(SEP).pop() : null;
     return void reveal(oj.dataset.where, leaf);
   }
+  const go = e.target.closest("[data-gotab]");
+  if (go) {
+    const tab = document.querySelector('.tabs button[data-tab="'
+                                       + go.dataset.gotab + '"]');
+    if (tab) { tab.click(); tab.scrollIntoView({block: "nearest"}); }
+    return;
+  }
   const open = e.target.closest("[data-open]");
   if (open) return void reveal(open.dataset.open);
   const show = e.target.closest("[data-show]");
@@ -1386,8 +1406,15 @@ setInterval(refresh, 1000);
 PAGE = (_HTML
         .replace("/*__I18N__*/{}",
                  json.dumps(i18n.STRINGS, ensure_ascii=False))
-        .replace('/*__LANG__*/"vi"', json.dumps(i18n.DEFAULT)))
+        .replace('/*__LANG__*/"vi"', json.dumps(i18n.DEFAULT))
+        .replace("__VERSION__", C.VERSION))
 assert "__I18N__" not in PAGE and "__LANG__" not in PAGE
+# Both places that show the version come from C.VERSION, and this is what says
+# so: a literal left behind in either one would be a number that stops being
+# true at the next release, silently.
+assert "__VERSION__" not in PAGE
+assert PAGE.count(">v" + C.VERSION + "<") == 1, "header badge"
+assert PAGE.count("<b>" + C.VERSION + "</b>") == 1, "Version tab row"
 
 
 def _check_markup():

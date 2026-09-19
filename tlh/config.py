@@ -11,6 +11,11 @@ is -- the render never rescales, and the output keeps that size.
 """
 from pathlib import Path
 
+# The one place the version number is written. The page shows it in two
+# places -- a badge in the header and the top row of the Version tab -- and
+# two literals would eventually disagree, with nothing to catch it.
+VERSION = "3.0"
+
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
 
