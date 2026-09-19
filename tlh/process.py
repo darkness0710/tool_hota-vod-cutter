@@ -10,7 +10,8 @@ from . import render as render_mod
 from . import naming, qrcover, screens, segments as seg_mod
 from . import signal as signal_mod
 from . import timeline
-from .ffmpeg import duration, hms, scale_to, size as probe_size
+from .ffmpeg import (duration, frame_rate, hms, scale_to,
+                     size as probe_size)
 
 
 def _log(*args):
@@ -81,6 +82,7 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     # and the only clue was a warning about the clock coordinates.
     frame = probe_size(video) or tuple(C.REF)
     prescale = scale_to(frame, C.REF)
+    fps = frame_rate(video) or "30"
     if tuple(frame) != tuple(C.REF):
         ar, ref_ar = frame[0] / frame[1], C.REF[0] / C.REF[1]
         if abs(ar - ref_ar) > C.AR_TOL:
@@ -94,7 +96,7 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     render_s = 0.0 if dry_run else dur * C.KEEP_GUESS / C.RATE_RENDER
     log(f"    file      {os.path.basename(video)}")
     log(f"    length    {hms(dur)}")
-    log(f"    frame     {frame[0]}x{frame[1]}"
+    log(f"    frame     {frame[0]}x{frame[1]}  {fps} fps"
         + ("" if not prescale else
            f"   (thu nho ve {C.REF[0]}x{C.REF[1]} de do toa do;"
            f" video ra van {frame[0]}x{frame[1]})"))
@@ -206,14 +208,14 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
     if per_game:
         return _render_per_game(video, segs, sig, out, workdir, render_workers,
-                                keep_parts, started, stage, log, cover)
+                                keep_parts, started, stage, log, cover, fps)
 
     partsdir = os.path.join(workdir, "parts")
     stage(f"[4/4] render -> {partsdir if parts_only else out}")
     rc = render_mod.run(video, segs, out, render_workers,
                         outdir=partsdir, progress=log,
                         keep_parts=keep_parts or parts_only,
-                        parts_only=parts_only, cover=cover)
+                        parts_only=parts_only, cover=cover, fps=fps)
     if rc == 0 and parts_only:
         log(f"  done  pieces in {partsdir}   "
             f"{(time.time()-started)/60:.1f} min total")
@@ -225,7 +227,7 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
 
 def _render_per_game(video, segs, sig, out, workdir, render_workers,
-                     keep_parts, started, stage, log, cover=None):
+                     keep_parts, started, stage, log, cover=None, fps="30"):
     """One video per game, instead of one video for the whole stream.
 
     The games come from timeline.played_games, so a file called "(game 3)"
@@ -277,7 +279,7 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
         rc = render_mod.run(
             video, part, target, render_workers,
             outdir=os.path.join(workdir, f"parts-game{number}"),
-            progress=log, keep_parts=keep_parts, cover=cover)
+            progress=log, keep_parts=keep_parts, cover=cover, fps=fps)
         if rc:
             failed.append(number)
         else:

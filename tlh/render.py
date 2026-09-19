@@ -23,7 +23,7 @@ from .ffmpeg import FF
 
 
 def _one(job):
-    video, i, a, b, is_last, outdir, codec, qflag, cover = job
+    video, i, a, b, is_last, outdir, codec, qflag, cover, fps = job
     dur = b - a
     out = os.path.join(outdir, f"seg{i:04d}.mp4")
     fade_out_at = max(0.0, dur - C.FADE)
@@ -63,8 +63,14 @@ def _one(job):
                 "-map", "[v]", "-map", "[aout]"]
     # -r/-fps_mode are not optional: h264_qsv refuses to open when the frame
     # rate is not constant, and the filter chain leaves it unset.
+    #
+    # The rate is the SOURCE's, not a fixed 60. Hard-coding 60 against a 30 fps
+    # VOD -- which is what YouTube serves for this channel -- made ffmpeg
+    # duplicate every frame: twice the frames to encode, a bigger file, and not
+    # one extra moment of motion in it, because the second copy of a frame
+    # carries nothing the first did not.
     cmd += ["-c:v", codec] + encoder.quality_args(qflag) + [
-        "-r", "60", "-fps_mode", "cfr",
+        "-r", fps, "-fps_mode", "cfr",
         "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-y", out]
     rc = subprocess.call(cmd, stdout=subprocess.DEVNULL,
                          stderr=subprocess.STDOUT)
@@ -72,10 +78,11 @@ def _one(job):
 
 
 def run(video, segments, out, workers=3, outdir="parts", progress=print,
-        keep_parts=False, parts_only=False, cover=None):
+        keep_parts=False, parts_only=False, cover=None, fps="60"):
     """Render `segments` of `video` into `out`. Returns an exit code.
 
     `cover` is (image, x, y, w, h) painted over every frame, or None.
+    `fps` is the source's own rate, as a string ffmpeg -r accepts.
 
     `parts_only` stops once the pieces are written, without concatenating
     them. When the question is what the detector decided, the pieces ARE the
@@ -85,7 +92,7 @@ def run(video, segments, out, workers=3, outdir="parts", progress=print,
     os.makedirs(outdir, exist_ok=True)
     codec, qflag = encoder.detect(log=progress)
     jobs = [(video, i, a, b, i == len(segments) - 1, outdir, codec, qflag,
-             cover)
+             cover, fps)
             for i, (a, b) in enumerate(segments)]
 
     done, started, failed = 0, time.time(), []

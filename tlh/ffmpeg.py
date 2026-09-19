@@ -50,6 +50,31 @@ def size(video):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+# ffmpeg prints a ROUNDED decimal frame rate ("29.97 fps"), not the rational
+# the file carries. Passing 29.97 back to -r drifts against 30000/1001 by about
+# a second every nine minutes, which over a five hour VOD walks the audio a
+# long way off the picture. The NTSC rates are therefore mapped back to the
+# exact fraction; everything else is already an integer.
+NTSC = {"23.98": "24000/1001", "29.97": "30000/1001", "47.95": "48000/1001",
+        "59.94": "60000/1001", "119.88": "120000/1001"}
+
+
+def frame_rate(video):
+    """Source frame rate as a string `-r` accepts, or None."""
+    err = subprocess.run(
+        [FF, "-hide_banner", "-t", "0.1", "-i", video, "-f", "null", "-"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace").stderr or ""
+    m = re.search(r"Video:.*?, ([\d.]+) fps", err)
+    if not m:
+        return None
+    shown = m.group(1)
+    if shown in NTSC:
+        return NTSC[shown]
+    rate = float(shown)
+    return str(int(rate)) if rate == int(rate) else shown
+
+
 def scale_to(src, ref):
     """Filter prefix that brings `src` to `ref`, or "" when it already is.
 

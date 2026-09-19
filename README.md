@@ -93,9 +93,14 @@ date is read, in order, from the `[DD-MM-YYYY]` on the front of the input
 filename, then the download record in `work/index.json`, and only failing both
 from the file's timestamp, with a warning.
 
-Downloads ask for 1080p60 H.264 and warn if what arrives is not 1920x1080 —
-every overlay coordinate assumes 1080p, so another size would produce a
-confidently wrong cut.
+Downloads take the source's own resolution, preferring VP9 over AV1 at the
+same size because it decodes faster. Every overlay coordinate is measured in a
+1920x1080 reference frame, and any 16:9 source is scaled to it for detection
+only — the render never rescales, so a 1440p VOD comes out 1440p. Anything not
+16:9 is refused rather than squashed.
+
+The cut keeps the source's frame rate. It used to force 60, which on this
+channel's 30 fps VODs duplicated every frame: a bigger file, no extra motion.
 
 ## Layout
 
@@ -112,7 +117,7 @@ tlh/
                         change if a VOD uses a different overlay
   ffmpeg.py             ffmpeg location, duration, frame helpers
   encoder.py            probes NVENC / QuickSync / AMF / libx264
-  fetch.py              yt-dlp download, 1080p60 H.264 + AAC
+  fetch.py              yt-dlp download, source resolution + AAC
   jsruntime.py          finds deno, without which YouTube throttles downloads
   aria2.py              finds aria2c, the multi-connection downloader
   web.py                the local web server: spawns run.py, tracks jobs

@@ -1,8 +1,17 @@
 # Downloading
 
-`Start.cmd` route 1 asks yt-dlp for 1080p60 H.264 plus AAC and warns if what
-arrives is not 1920x1080 — every overlay coordinate in `config.py` assumes
-1080p, so a 720p file would produce a confidently wrong cut.
+`Start.cmd` route 1 asks yt-dlp for the source's own resolution plus AAC
+audio, sorted by size first and then by decode cost.
+
+Codec is the part that matters. This channel publishes no H.264 above 1080p, so
+asking for the original 1440p means taking VP9 or AV1 — and the analysis pass
+decodes every frame of it. Measured over the same footage: **29x realtime on
+H.264 1080p against 7x on VP9 1440p**, with AV1 slower again. `FORMAT_SORT`
+therefore names vp9 ahead of yt-dlp's own default, which prefers av01.
+
+The size is no longer a requirement. Any 16:9 source is scaled to the reference
+frame for detection, so a 720p or 1440p file cuts correctly; only the aspect
+ratio is refused.
 
 Two external programs make this fast, and `Install.cmd` installs both per-user
 with no administrator rights. Neither is required: without them the download

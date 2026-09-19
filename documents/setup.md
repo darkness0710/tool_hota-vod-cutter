@@ -165,7 +165,7 @@ encoder. It still works, rendering is about 3x slower.
 that the URL is a finished VOD, not a stream still running. A live stream is
 refused on purpose.
 
-**The cut looks wrong on a new VOD** — the detector assumes a 1920x1080 frame
-and a fixed overlay layout. `run.py` warns when the clock overlay is found in
+**The cut looks wrong on a new VOD** — the detector handles any 16:9 size by
+scaling to its reference frame, but it does assume a fixed overlay layout. `run.py` warns when the clock overlay is found in
 under 20% of samples. See the last section of `README.md` for re-deriving the
 coordinates.

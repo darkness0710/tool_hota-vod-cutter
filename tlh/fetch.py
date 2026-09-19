@@ -18,11 +18,23 @@ from . import aria2, jsruntime
 from . import ffmpeg
 from .ffmpeg import FF
 
-# Match the reference VOD: H.264 video and AAC audio in mp4, capped at 1080p.
-# Falling back to any 1080p stream is fine; the resolution check below is what
-# actually protects the pipeline.
-FORMAT = ("bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/"
-          "bv*[height<=1080]+ba/b[height<=1080]")
+# The source's own resolution, no cap. The cap used to be a requirement --
+# every detector coordinate was read straight out of a 1920x1080 frame -- and
+# it is not one any more: the detector scales any 16:9 source to its reference
+# frame first. Keeping it would mean choosing a downscale on purpose, and on
+# this channel that is exactly what 1080p is. YouTube never publishes a
+# rendition higher than the upload, so 2560x1440 being offered proves the
+# stream itself was 1440p.
+FORMAT = "bv*+ba/b"
+# Resolution first, then the codec that costs least to decode.
+#
+# Codec is not a detail here. There is no H.264 above 1080p on this channel, so
+# asking for the original resolution means taking VP9 or AV1, and the analysis
+# pass has to decode every frame of it. Measured on this machine over the same
+# footage: 29x realtime on H.264 1080p against 7x on VP9 1440p. AV1 is slower
+# again, and there is nothing to gain from it when VP9 is offered at the same
+# size -- hence vp9 named ahead of yt-dlp's own default, which prefers av01.
+FORMAT_SORT = ["res", "vcodec:vp9", "acodec:m4a"]
 
 # How many stream slices to pull at once. googlevideo serves ONE connection at
 # about 1 MiB/s -- near twice playback rate, and dead steady, so it is a cap
@@ -234,6 +246,7 @@ def download(url, dest, log=print, workroot=None, live=False):
     progress = _Progress(log, live=live and not fast, size_hint=need or 0)
     opts = {
         "format": FORMAT,
+        "format_sort": FORMAT_SORT,
         "merge_output_format": "mp4",
         # yt-dlp downloads video and audio as separate streams and needs ffmpeg
         # to mux them. It only looks on PATH, and this project deliberately does
@@ -380,7 +393,9 @@ def _planned_streams(url, info, deno=None):
     try:
         import yt_dlp
         opts = {"quiet": True, "no_warnings": True, "skip_download": True,
-                "format": FORMAT, **_js_opts(deno)}
+                "format": FORMAT, "format_sort": FORMAT_SORT,
+                "extractor_args": {"youtube": {"skip": ["hls"]}},
+                **_js_opts(deno)}
         with yt_dlp.YoutubeDL(opts) as ydl:
             picked = ydl.process_ie_result(info, download=False)
     except Exception:
