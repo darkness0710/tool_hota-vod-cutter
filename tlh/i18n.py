@@ -147,6 +147,21 @@ VI = {
     "job.finished": "xong",
     "job.took": "mất",
     "job.stale": "Không có dữ liệu mới",
+    # Three ways a job can go quiet. They look identical on screen unless the
+    # page says which one it is, and they want opposite reactions from the
+    # reader: wait, wait, or act.
+    "job.merging": "Đang ghép video + audio — khâu này không báo tiến độ, "
+                   "video càng lớn càng lâu",
+    "job.aliveUnread": "Vẫn đang chạy, nhưng trang chưa đọc được tiến độ",
+    "job.heardAgo": "nhận tín hiệu {t} trước",
+    "job.silent": "Không nhận được gì từ tiến trình trong {t}",
+    "job.asOf": "số liệu ở trên là lúc {t}, không còn mới",
+    "job.restart": "Chạy lại",
+    "job.restarted": "Đã chạy lại",
+    "job.restartFail": "không chạy lại được",
+    "ask.restart.t": "Chạy lại việc này?",
+    "ask.restart.keep": "Phần đã tải được giữ nguyên, tải tiếp từ đó.",
+    "ask.restart.stop": "Tiến trình hiện tại sẽ bị dừng.",
 
     # ---- version tab
     "tab.ver": "Phiên bản",
@@ -424,6 +439,18 @@ EN = {
     "job.finished": "finished",
     "job.took": "took",
     "job.stale": "No new data",
+    "job.merging": "Muxing video + audio — this step reports no progress, and "
+                   "takes longer the larger the video is",
+    "job.aliveUnread": "Still running, but the page cannot read its progress",
+    "job.heardAgo": "heard from {t} ago",
+    "job.silent": "Nothing heard from the process for {t}",
+    "job.asOf": "the figures above are from {t} and are no longer current",
+    "job.restart": "Run again",
+    "job.restarted": "Started again",
+    "job.restartFail": "could not start it again",
+    "ask.restart.t": "Run this job again?",
+    "ask.restart.keep": "What has already downloaded is kept and resumed.",
+    "ask.restart.stop": "The current process will be stopped.",
 
     # ---- version tab
     "tab.ver": "Version",

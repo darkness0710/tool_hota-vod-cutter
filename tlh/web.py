@@ -259,10 +259,19 @@ PATTERNS = [
     (re.compile(r"^\s*Size\s+(.+?)\s*$"), lambda m: {"size": m.group(1)}),
     (re.compile(r"^\s*Streams\s+(.+?)\s*$"), lambda m: {"streams": m.group(1)}),
     (re.compile(r"^\s*Downloader\s+(.+?)\s*$"), lambda m: {"downloader": m.group(1)}),
-    (re.compile(r"^\s*Resuming\s+(.+?)\s*$"), lambda m: {"detail": "resuming: " + m.group(1)}),
+    (re.compile(r"^\s*Resuming\s+(.+?)\s*$"),
+     lambda m: {"detail": "resuming: " + m.group(1), "quiet": ""}),
+    # yt-dlp muxing the two streams. This prints ONE line and then says nothing
+    # for as long as ffmpeg takes, which on a 15 GiB video is minutes -- so
+    # without this the page called every single download stuck right at the
+    # end of it. `quiet` names the phase as one that is SUPPOSED to be silent,
+    # which is what lets the page tell "nothing to report" from "nothing left
+    # alive"; every pattern that can follow a merge clears it again.
+    (re.compile(r"^\s*Merging video and audio"),
+     lambda m: {"detail": "đang ghép video + audio", "quiet": "merge"}),
     (re.compile(r"^\s*Downloaded\s+(.+?)\s*$"),
      lambda m: {"stage": "analysing", "percent": 0, "file": m.group(1),
-                "detail": "download finished"}),
+                "detail": "download finished", "quiet": ""}),
     (re.compile(r"^\s*\[[\d:]+\]\s+\[1/4\]"),
      lambda m: {"stage": "analysing", "percent": 0, "detail": "pass 1/4 starting"}),
     (re.compile(r"^\s*\[[\d:]+\]\s+\[4/4\] render"),
@@ -341,6 +350,20 @@ def _reader(job_id, proc, log_path):
                     if job is not None:
                         job.setdefault("log", []).append(line)
                         del job["log"][:-LOG_TAIL]
+                        # The second clock. `updated` only moves when a line
+                        # MATCHES a pattern, so it answers "when did we last
+                        # understand something" -- which the page was showing
+                        # as though it meant "when was this thing last alive".
+                        # Those differ by the whole length of a merge, and by
+                        # every line we have no pattern for. Recorded here,
+                        # before parsing, so it counts output we cannot read.
+                        #
+                        # In memory only, deliberately: this moves several
+                        # times a second during a download and _save() writes
+                        # the whole record to disk. A restored job's value
+                        # would mean nothing anyway -- the process it referred
+                        # to is gone.
+                        job["heard"] = time.time()
                 fields = _parse(line)
                 if fields:
                     _update(job_id, **fields)
@@ -380,6 +403,12 @@ def start_job(url=None, filename=None, mode="full"):
 
     job_id = uuid.uuid4().hex[:12]
     job = {"id": job_id, "url": url, "file": filename, "mode": mode,
+           # What this job was SPAWNED with, kept apart from "file" because
+           # that one is not stable: the `Downloaded` and `file` patterns
+           # overwrite it as the run reports its own paths, so by the time
+           # anyone wants to restart the job it may hold a full path from a
+           # later stage rather than the argument that started it.
+           "src_url": url, "src_file": filename,
            "stage": "queued", "percent": 0, "detail": "starting",
            "title": url or filename, "started": time.time(),
            "updated": time.time(), "log": []}
@@ -488,6 +517,45 @@ def cancel_job(job_id):
     _update(job_id, stage="cancelled", detail="stopped from the web page",
             finished=time.time())
     return True
+
+
+# Modes start_job() knows how to spawn. A QR scrub comes from start_qr_job()
+# and takes different arguments, so it is not restartable this way.
+RESTARTABLE = ("full", "segments", "parts", "games", "download")
+
+
+def restart_job(job_id):
+    """Stop a job and start the same work again. Returns (ok, message).
+
+    For the case the page can now name but could not previously act on: the
+    child has gone silent and is never coming back. Restarting is cheap
+    because a download RESUMES -- fetch.py finds the .part file and continues
+    from it ("Resuming ... already downloaded"), so a stall at 87% costs the
+    remaining 13%, not the whole file again.
+
+    Deliberately a button rather than a watchdog. How long a healthy download
+    can legitimately go quiet on this line is not yet measured -- the audio
+    stream of one VOD crawled for 85 minutes while still printing every
+    second -- and a timer set by guesswork would kill the slow downloads this
+    tool exists to get through. The `heard` clock now records what the real
+    silences look like; a watchdog can be set from that number later.
+    """
+    with _lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return None, "không có việc này"
+        mode = job.get("mode")
+        # src_* where present; fall back for records written before they
+        # existed, which is the only case where "file" has to be trusted.
+        url = job.get("src_url", job.get("url"))
+        filename = job.get("src_file", job.get("file"))
+    if mode not in RESTARTABLE:
+        return None, f"không chạy lại được chế độ '{mode}'"
+    if not (url or filename):
+        return None, "việc này không ghi lại nguồn, không chạy lại được"
+    cancel_job(job_id)                      # no-op if it already exited
+    new_id = start_job(url=url, filename=filename, mode=mode)
+    return new_id, "đã chạy lại, phần đã tải được giữ nguyên"
 
 
 # ------------------------------------------------------------------- http ----
@@ -1279,6 +1347,14 @@ class Handler(BaseHTTPRequestHandler):
                               json.dumps({"deleted": ok, "error": message}
                                          if not ok else
                                          {"deleted": ok, "message": message},
+                                         ensure_ascii=False))
+
+        m = re.fullmatch(r"/api/jobs/(\w+)/restart", path)
+        if m:
+            new_id, message = restart_job(m.group(1))
+            return self._send(200 if new_id else 409,
+                              json.dumps({"id": new_id, "message": message}
+                                         if new_id else {"error": message},
                                          ensure_ascii=False))
 
         m = re.fullmatch(r"/api/jobs/(\w+)/cancel", path)

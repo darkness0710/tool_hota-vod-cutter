@@ -223,6 +223,13 @@ _HTML = r"""<!doctype html>
      The list below is what actually fixes the wall of text -- each item is one
      short sentence, so the line length never has to carry a paragraph. */
   .note { margin-top: 6px; font-size: 13px; line-height: 1.6; }
+  /* Numbers that are no longer current. Faded and struck through rather than
+     hidden -- the last known reading is still the most useful thing on the
+     card, it just must not be read as live. */
+  .meta.stale { opacity: .45; text-decoration: line-through; }
+  .prog.stale { opacity: .35; }
+  .prog.stale i { background: var(--dim); }
+  .note .dim { color: var(--dim); }
   /* A note that carries more than one fact is a LIST, not a paragraph with
      breaks in it. Three facts run together read as one wall and get skipped;
      bulleted, each is a thing the eye can land on and leave. The bullet also
@@ -894,6 +901,10 @@ const STAGES = {
   interrupted: ["Bị ngắt", "bad"],
 };
 const ACTIVE = ["queued", "downloading", "analysing", "rendering"];
+// Must match RESTARTABLE in web.py: the modes start_job() can spawn again. A
+// QR scrub is not one of them, so it gets no Restart button rather than a
+// button that fails.
+const RESTARTABLE = ["full", "segments", "parts", "games", "download"];
 // ------------------------------------------------------------------ i18n ---
 // Both languages arrive with the page: 124 short strings, which is smaller
 // than one thumbnail and saves a request and a loading state.
@@ -1102,18 +1113,53 @@ function jobCard(j, now) {
     html += '<button class="small" data-openjob="' + j.id + '" ' +
             'data-where="' + home + '" title="Mở thư mục chứa kết quả">Mở thư mục</button>';
   html += '</div>';
-  const when = whenLine(j, now);
-  if (when) html += '<div class="when">' + when + '</div>';
-  if (active) html += '<div class="prog"><i style="width:' + (j.percent || 0) + '%"></i></div>';
-  if (j.detail) html += '<div class="meta">' + esc(j.detail) + '</div>';
-
   // A bar that stops moving and an app that has hung look identical, so say
   // how long it has been quiet rather than leaving it to be guessed -- but
   // scale the threshold by how often this job reports, or a render that
   // prints once per piece is called stuck between every two pieces.
+  //
+  // Two clocks, because "quiet" has two causes that want opposite reactions:
+  //   idle  -- since the last line we could PARSE   (j.updated)
+  //   deaf  -- since the last byte of ANY output    (j.heard)
+  // Still talking but unparsed means wait; nothing at all is the one worth
+  // acting on. One number for both is what made a 15 GiB merge look exactly
+  // like a dead download.
+  //
+  // Decided BEFORE anything is drawn, because the verdict changes how the
+  // readout above is drawn too: numbers from twenty minutes ago were being
+  // shown in the same ink as live ones, so a frozen "255KiB/s · còn 2m34s"
+  // read as healthy while the warning underneath said the opposite.
   const quiet = Math.max(20, (j.gap || 0) * 2.5);
-  if (active && idle > quiet)
-    html += '<div class="note warn">Không có dữ liệu mới trong ' + howLong(idle) + '.</div>';
+  const deaf = j.heard ? now - j.heard : null;
+  const lagging = active && idle > quiet;
+  const merging = lagging && j.quiet === "merge" && (deaf === null || deaf > quiet);
+  const talking = lagging && !merging && deaf !== null && deaf < quiet;
+  const silent = lagging && !merging && !talking;
+
+  const when = whenLine(j, now);
+  if (when) html += '<div class="when">' + when + '</div>';
+  if (active) html += '<div class="prog' + (silent ? " stale" : "") +
+                      '"><i style="width:' + (j.percent || 0) + '%"></i></div>';
+  if (j.detail)
+    html += '<div class="meta' + (silent ? " stale" : "") + '">' +
+            esc(j.detail) + "</div>";
+
+  if (merging)
+    html += '<div class="note">' + T("job.merging") + "</div>";
+  else if (talking)
+    html += '<div class="note">' + T("job.aliveUnread") + " · " +
+            T("job.heardAgo").replace("{t}", howLong(deaf)) + "</div>";
+  else if (silent) {
+    html += '<div class="note warn">' +
+            T("job.silent").replace("{t}", howLong(deaf === null ? idle : deaf));
+    if (j.updated)
+      html += '<br><span class="dim">' +
+              T("job.asOf").replace("{t}", stamp(j.updated, true)) + "</span>";
+    if (RESTARTABLE.indexOf(j.mode) >= 0)
+      html += ' <button class="small" data-restart="' + j.id + '">' +
+              T("job.restart") + "</button>";
+    html += "</div>";
+  }
   if (j.warning) html += '<div class="note warn">' + esc(j.warning) + '</div>';
   if (j.error) html += '<div class="note bad">' + esc(j.error) + '</div>';
 
@@ -1314,6 +1360,16 @@ document.addEventListener("click", async e => {
   }
   const cancel = e.target.closest("[data-cancel]");
   if (cancel) { await post("/api/jobs/" + cancel.dataset.cancel + "/cancel"); return refresh(); }
+  const again = e.target.closest("[data-restart]");
+  if (again) {
+    const id = again.dataset.restart;
+    const j = ((LAST && LAST.jobs) || []).find(x => x.id === id) || {};
+    if (!ask(T("ask.restart.t"), "", j.title || id, "",
+             T("ask.restart.keep"), T("ask.restart.stop"))) return;
+    const { ok, data } = await post("/api/jobs/" + id + "/restart", {});
+    note(ok ? (data.message || T("job.restarted")) : (data.error || T("job.restartFail")), !ok);
+    return refresh();
+  }
   const log = e.target.closest("[data-log]");
   if (log) {
     const id = log.dataset.log;
