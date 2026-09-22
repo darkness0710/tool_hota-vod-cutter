@@ -78,6 +78,10 @@ def main():
     ap.add_argument("--per-game", action="store_true",
                     help="one video per game -- '[DD-MM-YYYY] Opponent (game "
                          "N).mp4' -- instead of one video for the whole stream")
+    ap.add_argument("--min-game", type=float, default=0.0, metavar="MINUTES",
+                    help="with --per-game, skip a game shorter than this in "
+                         "the source (0 = render every game). The web page "
+                         "passes whatever the Cài đặt tab holds")
     ap.add_argument("--force", action="store_true",
                     help="re-render even if the output already exists")
     ap.add_argument("--reanalyse", action="store_true",
@@ -223,7 +227,8 @@ def main():
                                reuse_signal=not args.reanalyse,
                                keep_parts=args.keep_parts,
                                parts_only=args.parts_only,
-                               per_game=args.per_game)
+                               per_game=args.per_game,
+                               min_game=args.min_game * 60.0)
         except Exception as exc:                # keep the batch alive
             print(f"  ERROR {type(exc).__name__}: {exc}")
             rc = 1

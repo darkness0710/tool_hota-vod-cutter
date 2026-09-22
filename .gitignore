@@ -12,6 +12,9 @@ work/
 # machine-specific: rebuilt by setup.ps1, probed on first render
 .venv/
 .encoder.json
+# preferences set on the Cài đặt tab. Kept out of work/ on purpose -- that is
+# what the Dọn buttons empty -- so it sits here and stays out of the repo.
+settings.json
 
 __pycache__/
 *.pyc

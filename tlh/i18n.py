@@ -21,7 +21,25 @@ VI = {
     "tab.fn": "Chức năng",
     "tab.trim": "Hỗ trợ cắt ghép",
     "tab.author": "Tác giả",
+    "tab.set": "Cài đặt",
     "lang.tip": "Đổi ngôn ngữ giao diện",
+
+    # ---- settings tab
+    "h2.set": "Cài đặt",
+    "set.minGame.t": "Bỏ qua ván ngắn hơn",
+    "set.minGame.d": "Đo trên <b>độ dài ván trong video gốc</b>, không phải độ "
+                     "dài video xuất ra — một ván dài bao nhiêu là chuyện của "
+                     "ván đấu, còn cắt được bao nhiêu là chuyện của bộ dò. Chỉ "
+                     "áp dụng cho chế độ <b>tách theo game</b>. Đặt <b>0</b> "
+                     "để xuất mọi ván.<br>Ván bị bỏ qua vẫn <b>giữ nguyên số "
+                     "thứ tự</b> — bỏ ván 3 thì ván sau vẫn tên là ván 4 — và "
+                     "được ghi rõ trong log để biết mà hạ ngưỡng xuống nếu lỡ "
+                     "mất ván hay.",
+    "set.minutes": "phút",
+    "set.save": "Lưu",
+    "set.saved": "đã lưu",
+    "set.clamped": "ngoài khoảng cho phép, đã đặt thành {n}",
+    "set.failed": "không lưu được",
     "tip.version": "Xem có gì mới trong bản này",
 
     # ---- shared buttons and tips
@@ -167,6 +185,27 @@ VI = {
     "tab.ver": "Phiên bản",
     "h2.ver": "Phiên bản",
     "ver.current": "hiện tại",
+    "ver.4.0.d": "<ul>"
+                 "<li>Thêm tab <b>Cài đặt</b>, và ô <b>bỏ qua ván ngắn hơn N "
+                 "phút</b> (mặc định 30) cho chế độ tách theo game — ván chết "
+                 "biome hoặc đối thủ GG sớm không còn tốn công render. Ván bị "
+                 "bỏ vẫn giữ nguyên số thứ tự và được ghi rõ trong log.</li>"
+                 "<li>Trang phân biệt được <b>ba kiểu “đứng im”</b> thay vì gộp "
+                 "làm một: đang chạy bình thường, đang ghép video (khâu này vốn "
+                 "không báo tiến độ), và im thật.</li>"
+                 "<li>Số liệu cũ bị <b>làm mờ và gạch ngang</b> khi tiến trình "
+                 "im, thay vì hiện y như số đang chạy.</li>"
+                 "<li>Thêm nút <b>Chạy lại</b> khi một việc im thật — phần đã "
+                 "tải được giữ nguyên và tải tiếp.</li>"
+                 "<li>Hết báo động giả ở khâu <b>ghép video + audio</b>.</li>"
+                 "<li>Thêm nút <b>Dọn</b> cho <code>work\\</code> và "
+                 "<b>Dọn tất cả</b>, kèm dung lượng sẽ xoá.</li>"
+                 "<li>Render lỗi giờ <b>tự dọn file tạm</b> thay vì bỏ lại "
+                 "hàng GiB không ai dùng tới.</li>"
+                 "<li>Sửa lỗi cắt ngược khi Tieulinh <b>đổi ghế giữa các "
+                 "ván</b>.</li>"
+                 "<li>Không còn sót <b>mẩu lượt đối thủ</b> 5–11 giây xen giữa "
+                 "các đoạn.</li></ul>",
     "ver.3.0.d": "<ul>"
                  "<li>Cắt được video ở mọi độ phân giải 16:9 — 720p, 1080p, "
                  "1440p. Video ra giữ nguyên độ phân giải của bản gốc.</li>"
@@ -320,7 +359,25 @@ EN = {
     "tab.fn": "Main",
     "tab.trim": "Trim helper",
     "tab.author": "Author",
+    "tab.set": "Settings",
     "lang.tip": "Change the interface language",
+
+    "h2.set": "Settings",
+    "set.minGame.t": "Skip games shorter than",
+    "set.minGame.d": "Measured on the <b>length of the game in the source</b>, "
+                     "not the length of the video produced — how long a game "
+                     "ran is a fact about the game, how much survives is a "
+                     "fact about the detector. Applies only to <b>one video "
+                     "per game</b>. Set <b>0</b> to render every game.<br>"
+                     "A skipped game <b>keeps its number</b> — drop game 3 and "
+                     "the next one is still game 4 — and is named in the log, "
+                     "so a good game lost to the threshold can be found and "
+                     "the number lowered.",
+    "set.minutes": "minutes",
+    "set.save": "Save",
+    "set.saved": "saved",
+    "set.clamped": "outside the allowed range, set to {n}",
+    "set.failed": "could not save",
     "tip.version": "What is new in this build",
 
     "btn.open": "Open",
@@ -456,6 +513,28 @@ EN = {
     "tab.ver": "Version",
     "h2.ver": "Version",
     "ver.current": "current",
+    "ver.4.0.d": "<ul>"
+                 "<li>New <b>Settings</b> tab, with <b>skip games shorter than "
+                 "N minutes</b> (default 30) for the per-game mode — a biome "
+                 "death or an early concede no longer costs a render. Skipped "
+                 "games keep their number and are named in the log.</li>"
+                 "<li>The page tells <b>three kinds of “stuck”</b> apart "
+                 "instead of merging them: running normally, muxing the video "
+                 "(a step that reports nothing), and genuinely silent.</li>"
+                 "<li>Stale figures are <b>dimmed and struck through</b> when "
+                 "a job goes silent, rather than shown as if current.</li>"
+                 "<li>New <b>Run again</b> button for a silent job — what has "
+                 "downloaded is kept and resumed.</li>"
+                 "<li>No more false alarm during <b>video + audio "
+                 "muxing</b>.</li>"
+                 "<li>New <b>Empty</b> button for <code>work\\</code> and an "
+                 "<b>Empty all</b>, both showing what they would free.</li>"
+                 "<li>A failed render now <b>discards its own scratch</b> "
+                 "instead of stranding gigabytes.</li>"
+                 "<li>Fixed the inverted cut when Tieulinh <b>changes seat "
+                 "between games</b>.</li>"
+                 "<li>No more 5–11 second <b>slivers of the opponent's "
+                 "turn</b> left between segments.</li></ul>",
     "ver.3.0.d": "<ul>"
                  "<li>Cuts any 16:9 source — 720p, 1080p, 1440p. The output "
                  "keeps the source's own resolution.</li>"

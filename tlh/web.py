@@ -37,7 +37,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import fetch, ffmpeg, jsruntime, naming
+from . import fetch, ffmpeg, jsruntime, naming, settings as settings_mod
 from .config import QR_PREFIX, ROOT
 from .webpage import PAGE
 
@@ -398,6 +398,13 @@ def start_job(url=None, filename=None, mode="full"):
         args.append("--parts-only")
     elif mode == "games":
         args.append("--per-game")
+        # Only this mode makes one video per game, so it is the only one the
+        # minimum can apply to. Read at spawn time rather than held in memory:
+        # the value the run uses is then the value the page was showing when
+        # the button was pressed.
+        minutes = settings_mod.load()["min_game_minutes"]
+        if minutes:
+            args += ["--min-game", str(minutes)]
     elif mode == "download":
         args.append("--download-only")
 
@@ -1111,6 +1118,12 @@ def _state():
             # what a folder HOLDS: the two differ for work/, because
             # index.json is never cleared.
             "clear": {k: _clear_stats(k) for k in CLEAR_TARGETS},
+            # Read from disk on every poll rather than cached. The file is a
+            # few hundred bytes, which is nothing beside the os.walk of input/
+            # and work/ this same function already does -- and it means a
+            # hand-edited settings.json shows up without a restart.
+            "settings": settings_mod.load(),
+            "settings_fields": settings_mod.FIELDS,
             "inputs": _listing(INPUT_DIR), "outputs": _listing(OUTPUT_DIR),
             "jobs": jobs}
 
@@ -1311,6 +1324,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200 if when else 502,
                               json.dumps({"when": when, "note": message},
                                          ensure_ascii=False))
+
+        if path == "/api/settings":
+            # settings.save() validates and clamps, then returns what it
+            # actually stored -- which the page writes back into its boxes, so
+            # a number typed outside the range visibly snaps to the limit
+            # instead of being silently ignored.
+            stored = settings_mod.save(body)
+            return self._send(200, json.dumps({"settings": stored},
+                                              ensure_ascii=False))
 
         if path == "/api/folders/clear":
             ok, message = clear_folder(body.get("where"))

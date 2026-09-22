@@ -60,7 +60,7 @@ def _load_signal(path, prescale=""):
 
 def process_video(video, out, workdir, workers=4, render_workers=3,
                   dry_run=False, reuse_signal=True, keep_parts=False,
-                  parts_only=False, per_game=False,
+                  parts_only=False, per_game=False, min_game=0.0,
                   log=_log):
     """Analyse `video`, write the cut to `out`. Returns an exit code.
 
@@ -213,7 +213,8 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
     if per_game:
         return _render_per_game(video, segs, sig, out, workdir, render_workers,
-                                keep_parts, started, stage, log, cover, fps)
+                                keep_parts, started, stage, log, cover, fps,
+                                min_game)
 
     partsdir = os.path.join(workdir, "parts")
     stage(f"[4/4] render -> {partsdir if parts_only else out}")
@@ -232,7 +233,8 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
 
 def _render_per_game(video, segs, sig, out, workdir, render_workers,
-                     keep_parts, started, stage, log, cover=None, fps="30"):
+                     keep_parts, started, stage, log, cover=None, fps="30",
+                     min_game=0.0):
     """One video per game, instead of one video for the whole stream.
 
     The games come from timeline.played_games, so a file called "(game 3)"
@@ -240,6 +242,15 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
     chapter file too: timeline.build measures against whatever segment list it
     is given, so passing one game's segments rebases its chapters to that
     video's own 00:00.
+
+    `min_game` (seconds, 0 for off) drops games too short to be worth a video
+    -- a biome death or an early concede. Applied HERE and not inside
+    played_games, which would be the obvious place and is the wrong one:
+    timeline.build() numbers its chapter labels off that same list, so
+    filtering it would renumber every later game. Dropping game 3 would leave
+    the fourth game of the stream called "game 3" in both its filename and its
+    chapters, and nothing would say the third had ever existed. Skipping at
+    the render step keeps the numbering honest and says what it skipped.
     """
     games = timeline.played_games(sig)
     if not games:
@@ -260,8 +271,18 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
         log(f"    {hms(outside)} of kept footage falls between games and is in "
             f"none of these videos (use one video for the whole stream to keep it)")
 
-    failed, made = [], []
+    failed, made, short = [], [], []
     for number, g_start, g_end, _runs in games:
+        span = g_end - g_start
+        if min_game and span < min_game:
+            # Said out loud with both numbers, because the threshold is a
+            # preference and this is the line that tells someone it was set
+            # too high -- a game dropped in silence is one nobody knows to go
+            # back for.
+            short.append((number, span))
+            log(f"    game {number}  {hms(span)} in the source, under the "
+                f"{hms(min_game)} minimum -- not rendered")
+            continue
         part = seg_mod.within(segs, g_start, g_end)
         if not part:
             log(f"    game {number}: nothing kept here, skipped")
@@ -294,6 +315,12 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
         size = os.path.getsize(target) / 2 ** 30 if os.path.exists(target) else 0
         log(f"  done  {target}   {size:.2f} GiB   {hms(kept)}")
     log(f"  {len(made)} video(s) in {(time.time() - started) / 60:.1f} min total")
+    if short:
+        saved = sum(span for _n, span in short)
+        log(f"  {len(short)} game(s) under the {hms(min_game)} minimum, "
+            f"{hms(saved)} of source not rendered: "
+            + ", ".join(f"game {n} ({hms(s)})" for n, s in short))
+        log("  lower the minimum on the Cài đặt tab to render them")
     if failed:
         log(f"  game(s) that failed to render: {failed}")
     return 1 if failed else 0

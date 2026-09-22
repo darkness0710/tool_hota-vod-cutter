@@ -230,6 +230,21 @@ _HTML = r"""<!doctype html>
   .prog.stale { opacity: .35; }
   .prog.stale i { background: var(--dim); }
   .note .dim { color: var(--dim); }
+  /* One setting per block: label, the control, then why it exists. The
+     explanation sits under the box rather than beside it because these need a
+     sentence or two, not a tooltip -- what the number measures is exactly the
+     part someone gets wrong. */
+  .setrow { display: grid; gap: 6px; font-size: 13px; }
+  .setrow + .setrow { border-top: 1px solid var(--line); margin-top: 14px;
+                      padding-top: 14px; }
+  .setrow label { color: var(--ink); font-weight: 600; }
+  .setin { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .setin input { width: 90px; background: #0e1014; color: var(--ink);
+                 border: 1px solid var(--line); border-radius: 8px;
+                 padding: 7px 10px; font: inherit;
+                 font-variant-numeric: tabular-nums; }
+  .setrow i { color: var(--dim); font-style: normal; line-height: 1.6; }
+  #setMsg { font-size: 12px; }
   /* A note that carries more than one fact is a LIST, not a paragraph with
      breaks in it. Three facts run together read as one wall and get skipped;
      bulleted, each is a thing the eye can land on and leave. The bullet also
@@ -586,6 +601,7 @@ _HTML = r"""<!doctype html>
     <button class="tab on" data-tab="fn" data-t="tab.fn">Chức năng</button>
     <button class="tab" data-tab="trim" data-t="tab.trim">Hỗ trợ cắt ghép</button>
     <button class="tab" data-tab="qr" data-t="tab.qr">Xoá QR code</button>
+    <button class="tab" data-tab="set" data-t="tab.set">Cài đặt</button>
     <button class="tab" data-tab="ver" data-t="tab.ver">Phiên bản</button>
     <button class="tab" data-tab="author" data-t="tab.author">Tác giả</button>
   </div>
@@ -726,13 +742,65 @@ _HTML = r"""<!doctype html>
   </div>
   </div><!-- /tab-qr -->
 
+  <div id="tab-set" hidden>
+  <h2 data-t="h2.set">Cài đặt</h2>
+  <div class="card">
+    <div class="setrow">
+      <label for="setMinGame" data-t="set.minGame.t">Bỏ qua ván ngắn hơn</label>
+      <div class="setin">
+        <input type="number" id="setMinGame" min="0" max="600" step="1">
+        <span data-t="set.minutes">phút</span>
+        <button class="small" id="setSave" data-t="set.save">Lưu</button>
+        <span id="setMsg" class="dim"></span>
+      </div>
+      <i data-th="set.minGame.d">Đo trên <b>độ dài ván trong video gốc</b>, không
+        phải độ dài video xuất ra — một ván dài bao nhiêu là chuyện của ván đấu,
+        còn cắt được bao nhiêu là chuyện của bộ dò. Chỉ áp dụng cho chế độ
+        <b>tách theo game</b>. Đặt <b>0</b> để xuất mọi ván.<br>
+        Ván bị bỏ qua vẫn <b>giữ nguyên số thứ tự</b> — bỏ ván 3 thì ván sau
+        vẫn tên là ván 4 — và được ghi rõ trong log để biết mà hạ ngưỡng
+        xuống nếu lỡ mất ván hay.</i>
+    </div>
+  </div>
+  </div><!-- /tab-set -->
+
   <div id="tab-ver" hidden>
   <h2 data-t="h2.ver">Phiên bản</h2>
   <div class="card">
     <dl class="rel">
       <dt class="now"><b>__VERSION__</b> <span class="tag"
         data-t="ver.current">hiện tại</span></dt>
-      <dd class="now" data-th="ver.3.0.d"><ul>
+      <dd class="now" data-th="ver.4.0.d"><ul>
+        <li>Thêm tab <b>Cài đặt</b>, và ô <b>bỏ qua ván ngắn hơn N phút</b>
+          (mặc định 30) cho chế độ tách theo game &mdash; ván chết biome hoặc
+          đối thủ GG sớm không còn tốn công render. Ván bị bỏ vẫn giữ nguyên số
+          thứ tự và được ghi rõ trong log.</li>
+        <li>Trang phân biệt được <b>ba kiểu &ldquo;đứng im&rdquo;</b> thay vì
+          gộp làm một: đang chạy bình thường, đang ghép video (khâu này vốn
+          không báo tiến độ), và im thật. Trước đây cả ba hiện cùng một cảnh
+          báo nên không biết nên chờ hay nên tắt.</li>
+        <li>Số liệu cũ bị <b>làm mờ và gạch ngang</b> khi tiến trình im. Trước
+          đây dòng &ldquo;255KiB/s &middot; còn 2m34s&rdquo; chụp từ 18 phút
+          trước vẫn hiện y như số liệu đang chạy.</li>
+        <li>Thêm nút <b>Chạy lại</b> khi một việc im thật &mdash; phần đã tải
+          được giữ nguyên và tải tiếp, không tải lại từ đầu.</li>
+        <li>Hết báo động giả ở khâu <b>ghép video + audio</b>: khâu này không
+          in gì suốt nhiều phút nên lần tải nào cũng bị gọi là treo.</li>
+        <li>Thêm nút <b>Dọn</b> cho thư mục <code>work\</code> và nút
+          <b>Dọn tất cả</b>, kèm dung lượng sẽ xoá. Trước đây trang chỉ hiện
+          <code class="p-in">input\</code> và <code class="p-out">output\</code>,
+          nên file tạm của một lần render lỗi không có cách nào xoá được từ
+          giao diện.</li>
+        <li>Một lần render lỗi giờ <b>tự dọn file tạm</b> thay vì bỏ lại hàng
+          GiB không ai đọc tới nữa.</li>
+        <li>Sửa lỗi cắt ngược khi Tieulinh <b>đổi ghế giữa các ván</b>: ô dò
+          tên lệch 41 pixel nên cả tiếng đầu bị gán nhầm ghế, giữ lượt đối thủ
+          và cắt lượt Tieulinh.</li>
+        <li>Không còn sót <b>mẩu lượt đối thủ</b> 5&ndash;11 giây xen giữa
+          các đoạn.</li>
+      </ul></dd>
+      <dt><b>3.0</b></dt>
+      <dd data-th="ver.3.0.d"><ul>
         <li>Cắt được video ở mọi độ phân giải 16:9 &mdash; 720p, 1080p, 1440p.
           Video ra giữ nguyên độ phân giải của bản gốc.</li>
         <li>Tải về ở độ phân giải gốc thay vì ép xuống 1080p.</li>
@@ -1225,6 +1293,13 @@ async function refresh() {
   document.getElementById("szall").textContent =
     A.files ? size(A.bytes) + "   " + A.files + " file" : "không có gì";
 
+  // Settings come down with every poll, but the box is only refilled when it
+  // is NOT being edited: the page refreshes on a timer, and overwriting a
+  // half-typed number every second makes the field impossible to use.
+  const mg = document.getElementById("setMinGame");
+  if (mg && document.activeElement !== mg && (s.settings || {}).min_game_minutes != null)
+    mg.value = s.settings.min_game_minutes;
+
   const d = s.drive, pct = d.total ? Math.round(100 * d.used / d.total) : 0;
   document.getElementById("dv").textContent = "Ổ " + d.root;
   document.getElementById("dvbar").style.width = pct + "%";
@@ -1381,6 +1456,26 @@ document.addEventListener("click", async e => {
 // ------------------------------------------------------------------ trim ---
 // A preview and two marks. The point is not to type a timestamp -- the command
 // line is better at that -- but to see the frame and take the time off it.
+// --------------------------------------------------------------- settings ---
+// The server validates and clamps, then returns what it actually stored, and
+// that is what goes back into the box. A number outside the range therefore
+// SNAPS to the limit in front of the person who typed it, instead of being
+// quietly discarded and leaving them to believe 9999 was accepted.
+document.getElementById("setSave").onclick = async () => {
+  const box = document.getElementById("setMinGame");
+  const msg = document.getElementById("setMsg");
+  const asked = parseInt(box.value, 10);
+  const { ok, data } = await post("/api/settings",
+                                  { min_game_minutes: isNaN(asked) ? 0 : asked });
+  if (!ok) { msg.textContent = T("set.failed"); return; }
+  const got = (data.settings || {}).min_game_minutes;
+  box.value = got;
+  msg.textContent = got !== asked && !isNaN(asked)
+    ? T("set.clamped").replace("{n}", got) : T("set.saved");
+  setTimeout(() => { msg.textContent = ""; }, 2600);
+};
+
+// ------------------------------------------------------------------ trim ---
 const tvid = document.getElementById("tvid");
 
 // PARSES a typed timestamp into seconds -- the opposite direction from
