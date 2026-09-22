@@ -226,15 +226,21 @@ def _num(text):
 PATTERNS = [
     # aria2c's own readout, which is the only progress a download through it
     # produces: yt-dlp hands the transfer over and hears nothing until it ends.
-    (re.compile(r"\[#\w+\s+([\d.]+)(\w+)/([\d.]+)(\w+)\((\d+)%\)\s+CN:(\d+)\s+DL:\s*([\d.]+)(\w+)(?:\s+ETA:(\S+))?"),
+    (re.compile(r"\[#\w+\s+([\d.]+)(\w+)/([\d.]+)(\w+)\((\d+)%\)\s+CN:(\d+)\s+DL:\s*([\d.]+)(\w+)(?:\s+ETA:([^\s\]]+))?"),
      lambda m: {"stage": "downloading", "percent": int(m.group(5)),
                 "detail": f"{m.group(1)}{m.group(2)} of {m.group(3)}{m.group(4)}"
                           f"   {m.group(7)}{m.group(8)}/s   {m.group(6)} connections"
-                          + (f"   còn {m.group(9)}" if m.group(9) else "")}),
+                          + (f"   còn {m.group(9)}" if m.group(9) else ""),
+                # Bytes are moving, so whatever named this phase silent by
+                # design -- a merge, or the wait between two retries -- is
+                # over. Without this the marker outlives the phase it
+                # described and the next real stall is excused by it.
+                "quiet": ""}),
     # our own one-line download bar, used when aria2c is not installed
     (re.compile(r"^\s*\[[#-]+\]\s+(\d+)%\s+([\d.]+)/([\d.]+) GiB\s+(.*?)\s*$"),
      lambda m: {"stage": "downloading", "percent": int(m.group(1)),
-                "detail": f"{m.group(2)}/{m.group(3)} GiB   {m.group(4).strip()}"}),
+                "detail": f"{m.group(2)}/{m.group(3)} GiB   {m.group(4).strip()}",
+                "quiet": ""}),
     (re.compile(r"^\[download\]\s+100% of\s+([\d.]+\w+) in (\S+) at (\S+)"),
      lambda m: {"detail": f"stream done: {m.group(1)} in {m.group(2)} at {m.group(3)}"}),
     (re.compile(r"^\s*signal\s+(\d+)%\s+(\S+) elapsed(?:\s+eta (\S+))?"),
@@ -304,12 +310,45 @@ PATTERNS = [
     (re.compile(r"^\s*already rendered as (.+?), skipping"),
      lambda m: {"stage": "done", "percent": 100,
                 "detail": "already rendered: " + m.group(1)}),
+    # fetch.py's retry loop, which the page could not read a single line of.
+    # These two lines and the "download failed after" one below are everything
+    # that happens between a download dying and the next attempt, and none of
+    # them matched any pattern -- so the card fell silent for the whole
+    # 30-second wait and for however long the retry took afterwards, which is
+    # exactly the stretch someone watches the card to understand. On the
+    # screenshot this was written for, the only thing on screen was a red
+    # "aria2c exited with code 19" and, underneath it, two hours of nothing.
+    (re.compile(r"^\s*attempt (\d+) failed: (.+?)\s*$"),
+     lambda m: {"detail": f"lần {m.group(1)} hỏng: {m.group(2)}",
+                "retries": int(m.group(1)), "quiet": "",
+                # The error is CLEARED here, not kept. The run is retrying,
+                # not finished, and a red line reading "aria2c exited with
+                # code 19" left on a job that goes on to download the file is
+                # a lie that outlives the failure it describes. Nothing is
+                # lost: the message is on the detail line above and in the
+                # log, and if the run does give up the pattern below puts it
+                # back for good.
+                "error": ""}),
+    # The wait itself prints once and then says nothing. Thirty seconds is
+    # longer than the 20-second floor the page calls a stall, so without the
+    # `quiet` marker every retry flashed a red "nothing heard" warning and a
+    # Chạy lại button at the person, over a run that was about to carry
+    # on by itself.
+    (re.compile(r"^\s*waiting ([\d.]+)s, then resuming"),
+     lambda m: {"detail": f"chờ {m.group(1)}s rồi tải tiếp từ chỗ đang dở",
+                "quiet": "retry", "error": ""}),
     # Anything that means the run is not going to finish quietly.
     (re.compile(r"^\s*WARNING\s+no JavaScript runtime"),
      lambda m: {"warning": "no deno: downloads run about 50x slower"}),
     (re.compile(r"^\s*could not read this link: (.+?)\s*$"),
      lambda m: {"error": m.group(1)}),
-    (re.compile(r"^\s*download failed: (.+?)\s*$"), lambda m: {"error": m.group(1)}),
+    # "download failed AFTER n attempts", which is what fetch.py actually
+    # prints. The pattern here used to read "download failed:" and matched a
+    # line no part of this project has ever written, so the one message that
+    # means "it is over, it is not coming back" was the one the page could not
+    # read.
+    (re.compile(r"^\s*download failed after (\d+) attempts?: (.+?)\s*$"),
+     lambda m: {"error": f"tải hỏng sau {m.group(1)} lần thử: {m.group(2)}"}),
     (re.compile(r"^ERROR:\s+(.+?)\s*$"), lambda m: {"error": m.group(1)}),
     (re.compile(r"^\s*NOT ENOUGH SPACE\.\s+(.+?)\s*$"), lambda m: {"error": m.group(1)}),
 ]
@@ -531,7 +570,7 @@ def cancel_job(job_id):
 RESTARTABLE = ("full", "segments", "parts", "games", "download")
 
 
-def restart_job(job_id):
+def restart_job(job_id, auto=0):
     """Stop a job and start the same work again. Returns (ok, message).
 
     For the case the page can now name but could not previously act on: the
@@ -540,12 +579,14 @@ def restart_job(job_id):
     from it ("Resuming ... already downloaded"), so a stall at 87% costs the
     remaining 13%, not the whole file again.
 
-    Deliberately a button rather than a watchdog. How long a healthy download
-    can legitimately go quiet on this line is not yet measured -- the audio
-    stream of one VOD crawled for 85 minutes while still printing every
-    second -- and a timer set by guesswork would kill the slow downloads this
-    tool exists to get through. The `heard` clock now records what the real
-    silences look like; a watchdog can be set from that number later.
+    Both a button and, since the `heard` clock gave it a number to work from,
+    a watchdog: see _watchdog() below. `auto` is how many times in a row the
+    watchdog has now restarted this work, carried onto the NEW record because
+    the old one stops being written the moment it is cancelled -- without it
+    the cap would reset on the restart it is meant to be counting. A restart
+    somebody asked for passes 0, which clears the count: a person looking at
+    the card is a better reason to try again than three failures are a reason
+    to stop.
     """
     with _lock:
         job = _jobs.get(job_id)
@@ -562,7 +603,121 @@ def restart_job(job_id):
         return None, "việc này không ghi lại nguồn, không chạy lại được"
     cancel_job(job_id)                      # no-op if it already exited
     new_id = start_job(url=url, filename=filename, mode=mode)
+    if auto:
+        _update(new_id, auto_restarts=auto,
+                detail=f"tự chạy lại lần {auto} sau khi tiến trình cũ im")
     return new_id, "đã chạy lại, phần đã tải được giữ nguyên"
+
+
+# --------------------------------------------------------------- watchdog ----
+# What the previous commit deliberately left undone, now that `heard` has given
+# it a number to stand on. The distinction that makes a timer safe here is that
+# it reads TOTAL silence, not progress: the slow downloads this tool exists to
+# sit through are slow, not silent -- one VOD's audio stream crawled for 85
+# minutes at 53 KiB/s and printed a line every second of it. A watchdog looking
+# at `heard` never sees that download at all.
+#
+# The threshold itself is a setting (stall_restart_minutes, 30 by default,
+# 0 for off), because it is a guess about one house's network rather than a
+# measured fact, and the person watching a stall is better placed to change it
+# than this file is.
+
+# Downloads only, and this is the load-bearing line. A download restart is
+# cheap and safe -- fetch.py finds the .part file and continues, so the worst
+# case is the seconds since the last flush. Analysis and rendering are neither:
+# a render restart throws away up to an hour of encoding, and those are also
+# the stages whose legitimate silences are not measured anywhere, since one
+# ffmpeg piece can run a long time without printing. They keep the Chạy lại
+# button and nothing else.
+WATCHED_STAGES = ("queued", "downloading")
+
+# A merge says nothing for its whole length by design, and how long that is
+# scales with the file -- minutes for a 15 GiB video, and not measured here.
+# So the phase that names itself (`quiet == "merge"`) is given a multiple of
+# the threshold instead of the threshold: at the default 30 minutes a mux has
+# an hour and a half before anything touches it.
+STALL_MERGE_FACTOR = 3
+
+# How many times in a row the watchdog restarts the same work before it stops
+# and leaves the card to a person. A download that dies silently in its first
+# minute every time is not a stall, it is a broken input, and restarting it
+# forever gets nowhere loudly. Each restart resumes from the .part file, so
+# three is three real attempts at the bytes that are left.
+AUTO_RESTART_CAP = 3
+
+# Nothing here is urgent -- the thresholds are tens of minutes -- so this is
+# set by how soon the page should SHOW the restart, not by how soon it is due.
+WATCHDOG_TICK = 15.0
+
+
+def _stall_limit():
+    """Seconds of silence before a restart, or None when switched off.
+
+    Read from disk each sweep rather than cached, for the reason _state() does
+    the same: a number changed on the Cài đặt tab has to take effect on the
+    job that is stuck right now, which is the only time anyone opens it.
+    """
+    minutes = settings_mod.load().get("stall_restart_minutes", 0)
+    return minutes * 60.0 if minutes else None
+
+
+def _stalled(job, now, limit):
+    """How long this job has been silent, if that is long enough to act on."""
+    if job.get("stage") not in WATCHED_STAGES:
+        return None
+    if job.get("mode") not in RESTARTABLE:
+        return None
+    # `heard` is the last byte of ANY output. `started` is the fallback for a
+    # job that has not printed one line since it was spawned -- also a hang,
+    # and the one with the least to lose by being restarted.
+    silent = now - (job.get("heard") or job.get("started") or now)
+    if job.get("quiet") == "merge":
+        limit *= STALL_MERGE_FACTOR
+    return silent if silent >= limit else None
+
+
+def _watchdog():
+    """Restart downloads that have stopped saying anything at all.
+
+    One thread, one sweep at a time, so a restart cannot race another: by the
+    time the next sweep runs the old job is "cancelled" and out of
+    WATCHED_STAGES, and the new one has a fresh `heard`.
+    """
+    while True:
+        time.sleep(WATCHDOG_TICK)
+        try:
+            limit = _stall_limit()
+            if not limit:
+                continue
+            now = time.time()
+            due = []
+            with _lock:
+                for job in _jobs.values():
+                    silent = _stalled(job, now, limit)
+                    if silent is not None:
+                        due.append((job["id"], silent,
+                                    job.get("auto_restarts", 0)))
+            for job_id, silent, done in due:
+                if done >= AUTO_RESTART_CAP:
+                    # Marked in memory and NOT through _update(), which would
+                    # move `updated` -- the very clock the card is counting to
+                    # show this job as stuck. Writing the flag through it
+                    # would reset that count every fifteen seconds and the
+                    # stall would never be displayed at all.
+                    with _lock:
+                        job = _jobs.get(job_id)
+                        if job is not None:
+                            job["stall_giveup"] = done
+                    continue
+                new_id, message = restart_job(job_id, auto=done + 1)
+                print(f"  watchdog  {job_id} silent for {silent / 60:.0f} min, "
+                      f"restart {done + 1}/{AUTO_RESTART_CAP} -> "
+                      f"{new_id or message}")
+        except Exception as exc:
+            # A watchdog that dies on one bad sweep is worse than one that
+            # misses a restart: it fails silently, which is the thing it was
+            # built to stop happening.
+            print(f"  watchdog  sweep failed: {exc}")
 
 
 # ------------------------------------------------------------------- http ----
@@ -1418,6 +1573,9 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     _load_jobs()
+    # Daemon, so Ctrl+C is not held up by a thread that is asleep for fifteen
+    # seconds. It owns no state worth shutting down cleanly.
+    threading.Thread(target=_watchdog, daemon=True).start()
     server = Server(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}"
     print(f"\n  tieu_linh_hota   {url}")

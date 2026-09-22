@@ -39,6 +39,29 @@ FIELDS = {
     #
     # 0 turns it off and renders every game.
     "min_game_minutes": {"default": 30, "min": 0, "max": 600},
+
+    # How long a download may go COMPLETELY silent before the page stops it
+    # and starts it again by itself. 0 switches the watchdog off and leaves
+    # the Chay lai button as the only way back.
+    #
+    # Measured against `heard` in tlh/web.py -- the last byte of ANY output,
+    # parsed or not -- and NOT against the progress readout. That distinction
+    # is the whole reason a timer is safe here: the slow downloads this tool
+    # exists to sit through are slow, not silent. One VOD's audio stream
+    # crawled for 85 minutes at 53 KiB/s while printing a line every second,
+    # and a watchdog that reads total silence never sees it.
+    #
+    # 30 because nothing healthy in a download is silent for half an hour:
+    # aria2c redraws its readout every second and so does our own bar. The one
+    # exception is the mux at the end, which says nothing for its whole length
+    # -- that phase names itself (`quiet == "merge"`) and is given
+    # STALL_MERGE_FACTOR times as long.
+    #
+    # Downloads only. A restart there resumes from the .part file and costs
+    # seconds; restarting a render throws away up to an hour of encoding, and
+    # how long one ffmpeg piece may legitimately run without printing is not
+    # measured here. See WATCHED_STAGES in tlh/web.py.
+    "stall_restart_minutes": {"default": 30, "min": 0, "max": 600},
 }
 
 DEFAULTS = {name: spec["default"] for name, spec in FIELDS.items()}

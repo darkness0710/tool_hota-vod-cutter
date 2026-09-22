@@ -35,6 +35,17 @@ VI = {
                      "thứ tự</b> — bỏ ván 3 thì ván sau vẫn tên là ván 4 — và "
                      "được ghi rõ trong log để biết mà hạ ngưỡng xuống nếu lỡ "
                      "mất ván hay.",
+    "set.stall.t": "Tự chạy lại khi tiến trình im quá",
+    "set.stall.d": "Đếm từ lần cuối tiến trình <b>in ra bất cứ thứ gì</b>, "
+                   "không phải từ lần cuối tốc độ thay đổi — một lần tải "
+                   "chậm vẫn in mỗi giây một dòng nên không bao giờ bị động tới. "
+                   "Đặt <b>0</b> để tắt.<br>Chỉ áp dụng cho <b>khâu tải</b>: "
+                   "tải lại thì tiếp tục từ file <code>.part</code> nên gần như "
+                   "không mất gì, còn chạy lại khâu phân tích hay render thì có "
+                   "thể mất cả tiếng đồng hồ — hai khâu đó vẫn phải bấm tay. "
+                   "Khâu <b>ghép video + audio</b> vốn không in gì nên được "
+                   "gấp 3 lần thời gian này.<br>Tự chạy lại tối đa <b>3 lần</b> "
+                   "liên tiếp rồi dừng, để không quay vòng vô tận với một link hỏng.",
     "set.minutes": "phút",
     "set.save": "Lưu",
     "set.saved": "đã lưu",
@@ -177,6 +188,13 @@ VI = {
     "job.restart": "Chạy lại",
     "job.restarted": "Đã chạy lại",
     "job.restartFail": "không chạy lại được",
+    # A fourth kind of quiet, and the only one that ends by itself: fetch.py
+    # waits 30 seconds between attempts, which is longer than the floor the
+    # page calls a stall, so without a line of its own every retry showed a
+    # red warning for a run that was about to carry on.
+    "job.retrying": "Lần tải vừa rồi hỏng, đang chờ thử lại — phần đã tải giữ nguyên",
+    "job.autoRestart": "trang tự chạy lại lần {n} vì tiến trình cũ im",
+    "job.giveup": "Đã tự chạy lại {n} lần mà vẫn im. Trang không tự chạy lại nữa — xem log rồi bấm Chạy lại nếu muốn thử tiếp.",
     "ask.restart.t": "Chạy lại việc này?",
     "ask.restart.keep": "Phần đã tải được giữ nguyên, tải tiếp từ đó.",
     "ask.restart.stop": "Tiến trình hiện tại sẽ bị dừng.",
@@ -185,6 +203,26 @@ VI = {
     "tab.ver": "Phiên bản",
     "h2.ver": "Phiên bản",
     "ver.current": "hiện tại",
+    "ver.4.1.d": "<ul>"
+                 "<li>Trang <b>tự chạy lại một lần tải bị treo</b>. Trước đây "
+                 "một lần tải chết lúc 2 giờ sáng thì sáng ra vẫn nằm nguyên ở "
+                 "chỗ đó — có lần đứng im 2 tiếng 7 phút. Giờ nếu tiến trình "
+                 "không in ra gì suốt 30 phút, trang tự dừng và tải tiếp từ chỗ "
+                 "đang dở. Đổi số phút hoặc tắt hẳn ở tab <b>Cài đặt</b>.</li>"
+                 "<li>Chỉ áp dụng cho <b>khâu tải</b>, vì tải lại thì tiếp tục từ "
+                 "file dở nên gần như không mất gì. Khâu phân tích và render vẫn "
+                 "phải bấm tay.</li>"
+                 "<li>Đếm theo <b>“tiến trình có in ra gì không”</b>, không phải "
+                 "theo tốc độ — một lần tải chậm vẫn in mỗi giây một dòng nên "
+                 "không bao giờ bị động tới. Tối đa <b>3 lần</b> liên tiếp rồi "
+                 "dừng hẳn.</li>"
+                 "<li>Thẻ việc <b>đọc được lúc đang thử lại</b>, thay vì 30 "
+                 "giây trắng trơn kèm một cảnh báo treo giả.</li>"
+                 "<li>Dòng lỗi đỏ <b>không còn dính lại</b> sau khi lần thử sau "
+                 "chạy được.</li>"
+                 "<li>Thông báo <b>tải hỏng hẳn</b> giờ hiện ra được.</li>"
+                 "<li>Sửa dấu <code>]</code> thừa ở cuối dòng tốc độ tải.</li>"
+                 "</ul>",
     "ver.4.0.d": "<ul>"
                  "<li>Thêm tab <b>Cài đặt</b>, và ô <b>bỏ qua ván ngắn hơn N "
                  "phút</b> (mặc định 30) cho chế độ tách theo game — ván chết "
@@ -373,6 +411,18 @@ EN = {
                      "the next one is still game 4 — and is named in the log, "
                      "so a good game lost to the threshold can be found and "
                      "the number lowered.",
+    "set.stall.t": "Restart automatically after silence of",
+    "set.stall.d": "Counted from the last time the process printed "
+                   "<b>anything at all</b>, not from the last change in speed "
+                   "— a slow download still prints a line a second and is "
+                   "never touched. Set <b>0</b> to switch it off.<br>"
+                   "Applies to the <b>download</b> step only: a restart there "
+                   "resumes from the <code>.part</code> file and costs almost "
+                   "nothing, while restarting analysis or rendering can throw "
+                   "away an hour — those two stay on the manual button. The "
+                   "<b>video + audio mux</b> prints nothing by design and is "
+                   "given three times this long.<br>At most <b>3</b> automatic "
+                   "restarts in a row, so a broken link cannot loop for ever.",
     "set.minutes": "minutes",
     "set.save": "Save",
     "set.saved": "saved",
@@ -505,6 +555,13 @@ EN = {
     "job.restart": "Run again",
     "job.restarted": "Started again",
     "job.restartFail": "could not start it again",
+    "job.retrying": "That attempt failed; waiting to try again — what has "
+                    "downloaded is kept",
+    "job.autoRestart": "started again automatically, attempt {n}, after the "
+                       "last process went silent",
+    "job.giveup": "Restarted automatically {n} times and still silent. No "
+                  "further automatic restarts — read the log, then press "
+                  "Run again to keep trying.",
     "ask.restart.t": "Run this job again?",
     "ask.restart.keep": "What has already downloaded is kept and resumed.",
     "ask.restart.stop": "The current process will be stopped.",
@@ -513,6 +570,30 @@ EN = {
     "tab.ver": "Version",
     "h2.ver": "Version",
     "ver.current": "current",
+    "ver.4.1.d": "<ul>"
+                 "<li>The page now <b>restarts a stalled download by "
+                 "itself</b>. A download that died at 2am used to still be "
+                 "sitting there in the morning — one sat silent for 2 hours "
+                 "and 7 minutes. Now, if the process prints nothing for 30 "
+                 "minutes, the page stops it and resumes from what is on "
+                 "disk. Change the number or switch it off on the "
+                 "<b>Settings</b> tab.</li>"
+                 "<li>Downloads only, because a restart there resumes from "
+                 "the part file and costs almost nothing. Analysis and "
+                 "rendering still need the button.</li>"
+                 "<li>Measured on <b>whether the process printed anything</b>, "
+                 "not on speed — a slow download still prints a line a second "
+                 "and is never touched. At most <b>3</b> automatic restarts in "
+                 "a row.</li>"
+                 "<li>The card can now <b>read a retry while it happens</b>, "
+                 "instead of 30 blank seconds under a false stall "
+                 "warning.</li>"
+                 "<li>The red error line <b>no longer sticks</b> once a later "
+                 "attempt succeeds.</li>"
+                 "<li>The <b>download gave up for good</b> message is readable "
+                 "at last.</li>"
+                 "<li>Fixed the stray <code>]</code> at the end of the "
+                 "download speed line.</li></ul>",
     "ver.4.0.d": "<ul>"
                  "<li>New <b>Settings</b> tab, with <b>skip games shorter than "
                  "N minutes</b> (default 30) for the per-game mode — a biome "

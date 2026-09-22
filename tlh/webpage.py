@@ -750,8 +750,6 @@ _HTML = r"""<!doctype html>
       <div class="setin">
         <input type="number" id="setMinGame" min="0" max="600" step="1">
         <span data-t="set.minutes">phút</span>
-        <button class="small" id="setSave" data-t="set.save">Lưu</button>
-        <span id="setMsg" class="dim"></span>
       </div>
       <i data-th="set.minGame.d">Đo trên <b>độ dài ván trong video gốc</b>, không
         phải độ dài video xuất ra — một ván dài bao nhiêu là chuyện của ván đấu,
@@ -760,6 +758,34 @@ _HTML = r"""<!doctype html>
         Ván bị bỏ qua vẫn <b>giữ nguyên số thứ tự</b> — bỏ ván 3 thì ván sau
         vẫn tên là ván 4 — và được ghi rõ trong log để biết mà hạ ngưỡng
         xuống nếu lỡ mất ván hay.</i>
+    </div>
+    <div class="setrow">
+      <label for="setStall" data-t="set.stall.t">Tự chạy lại khi tiến trình
+        im quá</label>
+      <div class="setin">
+        <input type="number" id="setStall" min="0" max="600" step="1">
+        <span data-t="set.minutes">phút</span>
+      </div>
+      <i data-th="set.stall.d">Đếm từ lần cuối tiến trình <b>in ra bất
+        cứ thứ gì</b>, không phải từ lần cuối tốc độ thay đổi — một
+        lần tải chậm vẫn in mỗi giây một dòng nên không bao giờ bị động
+        tới. Đặt <b>0</b> để tắt.<br>Chỉ áp dụng cho <b>khâu tải</b>:
+        tải lại thì tiếp tục từ file <code>.part</code> nên gần như không
+        mất gì, còn chạy lại khâu phân tích hay render thì có thể mất cả
+        tiếng đồng hồ — hai khâu đó vẫn phải bấm tay. Khâu <b>ghép
+        video + audio</b> vốn không in gì nên được gấp 3 lần thời gian
+        này.<br>Tự chạy lại tối đa <b>3 lần</b> liên tiếp rồi dừng, để
+        không quay vòng vô tận với một link hỏng.</i>
+    </div>
+    <!-- One button for the card rather than one per setting. Two Save buttons
+         raise a question nobody should have to answer -- whether pressing one
+         discards what was typed in the other -- and the answer here is no:
+         this sends every box at once. -->
+    <div class="setrow">
+      <div class="setin">
+        <button class="small" id="setSave" data-t="set.save">Lưu</button>
+        <span id="setMsg" class="dim"></span>
+      </div>
     </div>
   </div>
   </div><!-- /tab-set -->
@@ -770,7 +796,35 @@ _HTML = r"""<!doctype html>
     <dl class="rel">
       <dt class="now"><b>__VERSION__</b> <span class="tag"
         data-t="ver.current">hiện tại</span></dt>
-      <dd class="now" data-th="ver.4.0.d"><ul>
+      <dd class="now" data-th="ver.4.1.d"><ul>
+        <li>Trang <b>tự chạy lại một lần tải bị treo</b>. Trước đây một
+          lần tải chết lúc 2 giờ sáng thì sáng ra vẫn nằm nguyên ở chỗ đó
+          &mdash; có lần đứng im <b>2 tiếng 7 phút</b> mà không ai biết. Giờ
+          nếu tiến trình không in ra gì suốt 30 phút, trang tự dừng và tải
+          tiếp từ chỗ đang dở. Đổi số phút hoặc tắt hẳn ở tab
+          <b>Cài đặt</b>.</li>
+        <li>Chỉ áp dụng cho <b>khâu tải</b>, vì tải lại thì tiếp tục từ file
+          dở nên gần như không mất gì. Khâu phân tích và render vẫn phải
+          bấm tay, vì chạy lại hai khâu đó có thể mất cả tiếng đồng
+          hồ.</li>
+        <li>Đếm theo <b>&ldquo;tiến trình có in ra gì không&rdquo;</b>, không
+          phải theo tốc độ. Một lần tải bò 53 KiB/s suốt 85 phút vẫn in mỗi
+          giây một dòng nên không bao giờ bị động tới. Tự chạy lại tối đa
+          <b>3 lần</b> liên tiếp rồi dừng hẳn, để một link hỏng không quay
+          vòng vô tận.</li>
+        <li>Thẻ việc giờ <b>đọc được lúc đang thử lại</b>: hiện
+          &ldquo;lần 1 hỏng&rdquo; rồi &ldquo;chờ 30s rồi tải tiếp&rdquo;, thay vì
+          30 giây trắng trơn kèm một cảnh báo treo giả.</li>
+        <li>Dòng lỗi đỏ <b>không còn dính lại</b> sau khi lần thử sau chạy
+          được &mdash; trước đây &ldquo;aria2c exited with code 19&rdquo; nằm
+          trên thẻ suốt cả một lần tải đã thành công.</li>
+        <li>Thông báo <b>tải hỏng hẳn</b> giờ hiện ra được. Trang dò nhầm
+          chữ nên đúng cái thông báo quan trọng nhất lại là cái nó không
+          đọc được.</li>
+        <li>Sửa dấu <code>]</code> thừa ở cuối dòng tốc độ tải.</li>
+      </ul></dd>
+      <dt><b>4.0</b></dt>
+      <dd data-th="ver.4.0.d"><ul>
         <li>Thêm tab <b>Cài đặt</b>, và ô <b>bỏ qua ván ngắn hơn N phút</b>
           (mặc định 30) cho chế độ tách theo game &mdash; ván chết biome hoặc
           đối thủ GG sớm không còn tốn công render. Ván bị bỏ vẫn giữ nguyên số
@@ -1098,6 +1152,7 @@ const COPY_FIELDS = [["title", "Tên"], ["mode", "Chế độ"], ["stage", "Bư�
   ["length", "Thời lượng"], ["segments", "Segment"], ["kept", "Giữ"],
   ["chapters", "Chương"], ["output", "Video ra"], ["output_size", "Cỡ output"],
   ["chapters_path", "Timeline (.txt)"],
+  ["retries", "Số lần thử lại"], ["auto_restarts", "Tự chạy lại"],
   ["warning", "Cảnh báo"], ["error", "Lỗi"]];
 
 function jobAsText(job, log) {
@@ -1200,9 +1255,15 @@ function jobCard(j, now) {
   const quiet = Math.max(20, (j.gap || 0) * 2.5);
   const deaf = j.heard ? now - j.heard : null;
   const lagging = active && idle > quiet;
-  const merging = lagging && j.quiet === "merge" && (deaf === null || deaf > quiet);
-  const talking = lagging && !merging && deaf !== null && deaf < quiet;
-  const silent = lagging && !merging && !talking;
+  // A phase that NAMES itself silent by design, so the page waits instead of
+  // warning. Two of them now: "merge" is yt-dlp's mux, and "retry" is the 30
+  // seconds fetch.py sleeps between two download attempts -- longer than the
+  // 20-second floor above, so every single retry used to flash a red stall
+  // warning at a run that was about to carry on by itself.
+  const patient = lagging && (j.quiet === "merge" || j.quiet === "retry")
+                  && (deaf === null || deaf > quiet);
+  const talking = lagging && !patient && deaf !== null && deaf < quiet;
+  const silent = lagging && !patient && !talking;
 
   const when = whenLine(j, now);
   if (when) html += '<div class="when">' + when + '</div>';
@@ -1212,8 +1273,9 @@ function jobCard(j, now) {
     html += '<div class="meta' + (silent ? " stale" : "") + '">' +
             esc(j.detail) + "</div>";
 
-  if (merging)
-    html += '<div class="note">' + T("job.merging") + "</div>";
+  if (patient)
+    html += '<div class="note">' +
+            T(j.quiet === "retry" ? "job.retrying" : "job.merging") + "</div>";
   else if (talking)
     html += '<div class="note">' + T("job.aliveUnread") + " · " +
             T("job.heardAgo").replace("{t}", howLong(deaf)) + "</div>";
@@ -1228,6 +1290,16 @@ function jobCard(j, now) {
               T("job.restart") + "</button>";
     html += "</div>";
   }
+  // Said on the card and not only in the console, because a job that restarted
+  // itself at 04:00 looks in every other way like a job that has simply been
+  // running since 04:00 -- and the count is the one number that says whether
+  // the restarts are helping or going round in a circle.
+  if (j.auto_restarts)
+    html += '<div class="note"><span class="dim">' +
+            T("job.autoRestart").replace("{n}", j.auto_restarts) + "</span></div>";
+  if (j.stall_giveup)
+    html += '<div class="note bad">' +
+            T("job.giveup").replace("{n}", j.stall_giveup) + "</div>";
   if (j.warning) html += '<div class="note warn">' + esc(j.warning) + '</div>';
   if (j.error) html += '<div class="note bad">' + esc(j.error) + '</div>';
 
@@ -1293,12 +1365,14 @@ async function refresh() {
   document.getElementById("szall").textContent =
     A.files ? size(A.bytes) + "   " + A.files + " file" : "không có gì";
 
-  // Settings come down with every poll, but the box is only refilled when it
-  // is NOT being edited: the page refreshes on a timer, and overwriting a
+  // Settings come down with every poll, but a box is only refilled when it is
+  // NOT being edited: the page refreshes on a timer, and overwriting a
   // half-typed number every second makes the field impossible to use.
-  const mg = document.getElementById("setMinGame");
-  if (mg && document.activeElement !== mg && (s.settings || {}).min_game_minutes != null)
-    mg.value = s.settings.min_game_minutes;
+  for (const [key, id] of Object.entries(SET_BOXES)) {
+    const box = document.getElementById(id);
+    if (box && document.activeElement !== box && (s.settings || {})[key] != null)
+      box.value = s.settings[key];
+  }
 
   const d = s.drive, pct = d.total ? Math.round(100 * d.used / d.total) : 0;
   document.getElementById("dv").textContent = "Ổ " + d.root;
@@ -1461,17 +1535,30 @@ document.addEventListener("click", async e => {
 // that is what goes back into the box. A number outside the range therefore
 // SNAPS to the limit in front of the person who typed it, instead of being
 // quietly discarded and leaving them to believe 9999 was accepted.
+//
+// Which stored key each box holds, in one place: refresh() fills the boxes and
+// the Save button reads them, and a second setting is exactly the point at
+// which those two start disagreeing about which settings exist.
+const SET_BOXES = { min_game_minutes: "setMinGame",
+                    stall_restart_minutes: "setStall" };
+
 document.getElementById("setSave").onclick = async () => {
-  const box = document.getElementById("setMinGame");
   const msg = document.getElementById("setMsg");
-  const asked = parseInt(box.value, 10);
-  const { ok, data } = await post("/api/settings",
-                                  { min_game_minutes: isNaN(asked) ? 0 : asked });
+  const asked = {};
+  for (const [key, id] of Object.entries(SET_BOXES)) {
+    const n = parseInt(document.getElementById(id).value, 10);
+    asked[key] = isNaN(n) ? 0 : n;
+  }
+  const { ok, data } = await post("/api/settings", asked);
   if (!ok) { msg.textContent = T("set.failed"); return; }
-  const got = (data.settings || {}).min_game_minutes;
-  box.value = got;
-  msg.textContent = got !== asked && !isNaN(asked)
-    ? T("set.clamped").replace("{n}", got) : T("set.saved");
+  const stored = data.settings || {}, clamped = [];
+  for (const [key, id] of Object.entries(SET_BOXES)) {
+    if (stored[key] == null) continue;
+    document.getElementById(id).value = stored[key];
+    if (stored[key] !== asked[key]) clamped.push(stored[key]);
+  }
+  msg.textContent = clamped.length
+    ? T("set.clamped").replace("{n}", clamped.join(", ")) : T("set.saved");
   setTimeout(() => { msg.textContent = ""; }, 2600);
 };
 
