@@ -796,7 +796,19 @@ _HTML = r"""<!doctype html>
     <dl class="rel">
       <dt class="now"><b>__VERSION__</b> <span class="tag"
         data-t="ver.current">hiện tại</span></dt>
-      <dd class="now" data-th="ver.4.1.d"><ul>
+      <dd class="now" data-th="ver.4.2.d"><ul>
+        <li>Sửa lỗi <b>video tách theo game bị cắt giữa trận combat
+          cuối</b>. Trong combat, ô ngày ở góc dưới bị làm mờ và số
+          <b>4, 5, 7</b> đọc không ra, nên tool tưởng ván đã hết ở lần cuối
+          đọc được đủ ngày &mdash; có video dừng ở round 2, mất nửa phút cuối
+          trận và cả bảng &ldquo;YOU WIN&rdquo;.</li>
+        <li>Giờ nếu tháng và tuần vẫn đọc được và khớp với ngay trước đó,
+          tool coi như vẫn là ngày đó, nên ván kéo tới hết trận. Chạy thử lại
+          trên nguyên stream 5 tiếng 26 phút: ván bị lỗi giờ kết thúc sau
+          &ldquo;YOU WIN&rdquo;, 9 ván còn lại không đổi.</li>
+      </ul></dd>
+      <dt><b>4.1</b></dt>
+      <dd data-th="ver.4.1.d"><ul>
         <li>Trang <b>tự chạy lại một lần tải bị treo</b>. Trước đây một
           lần tải chết lúc 2 giờ sáng thì sáng ra vẫn nằm nguyên ở chỗ đó
           &mdash; có lần đứng im <b>2 tiếng 7 phút</b> mà không ai biết. Giờ

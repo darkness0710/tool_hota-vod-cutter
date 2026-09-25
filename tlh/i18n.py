@@ -203,6 +203,10 @@ VI = {
     "tab.ver": "Phiên bản",
     "h2.ver": "Phiên bản",
     "ver.current": "hiện tại",
+    "ver.4.2.d": "<ul>"
+                 "<li>Sửa lỗi <b>video tách theo game bị cắt giữa trận combat cuối</b>. Trong combat, ô ngày ở góc dưới bị làm mờ và số <b>4, 5, 7</b> đọc không ra, nên tool tưởng ván đã hết ở lần cuối đọc được đủ ngày — có video dừng ở round 2, mất nửa phút cuối trận và cả bảng “YOU WIN”.</li>"
+                 "<li>Giờ nếu tháng và tuần vẫn đọc được và khớp với ngay trước đó, tool coi như vẫn là ngày đó, nên ván kéo tới hết trận. Chạy thử lại trên nguyên stream 5 tiếng 26 phút: ván bị lỗi giờ kết thúc sau “YOU WIN”, 9 ván còn lại không đổi.</li>"
+                 "</ul>",
     "ver.4.1.d": "<ul>"
                  "<li>Trang <b>tự chạy lại một lần tải bị treo</b>. Trước đây "
                  "một lần tải chết lúc 2 giờ sáng thì sáng ra vẫn nằm nguyên ở "
@@ -570,6 +574,9 @@ EN = {
     "tab.ver": "Version",
     "h2.ver": "Version",
     "ver.current": "current",
+    "ver.4.2.d": "<ul>"
+                 "<li>Fixed <b>per-game videos cut off in the middle of the last fight</b>. Combat dims the day counter at the bottom right, and the digits <b>4, 5 and 7</b> could not be read there, so a game was taken to end at its last full reading — one video stopped in round 2, losing the last half minute of the fight and the “YOU WIN” screen.</li>"
+                 "<li>A reading whose month and week still agree with the one just before it now counts as the same day, so the game runs to the end of the fight. Re-run over the whole 5h26 stream: the broken game now ends after “YOU WIN”, and the other nine are unchanged.</li></ul>",
     "ver.4.1.d": "<ul>"
                  "<li>The page now <b>restarts a stalled download by "
                  "itself</b>. A download that died at 2am used to still be "
