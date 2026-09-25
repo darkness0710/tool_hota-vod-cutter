@@ -37,6 +37,32 @@ def _runs(values, times):
     return out
 
 
+def _carry_partial(triples):
+    """Let a partly-read counter continue the full reading right before it.
+
+    Combat dims the bottom panel, and a digit with no dimmed template then
+    reads as -1 while the fields around it still read. Dropping those samples
+    ended the last day run where the fight began: on [5fo2IUmgFLE] the "5" of
+    Day 5 scored 53-75 against a cutoff of 55 across a whole battle, month and
+    week read throughout, and the game -- whose end is its last day run -- was
+    cut about half a minute before "YOU WIN", mid-fight.
+
+    A sample is carried only when every field it did read agrees with the
+    sample immediately before it, so the carry cannot jump a gap: a lobby or
+    menu reads nothing at all, which breaks the chain, and a restart reads a
+    different week or day, which contradicts it.
+    """
+    out = []
+    for value in triples:
+        prev = out[-1] if out else None
+        if (-1 in value and prev is not None and -1 not in prev
+                and any(v != -1 for v in value)
+                and all(v in (-1, p) for v, p in zip(value, prev))):
+            value = prev
+        out.append(value)
+    return out
+
+
 def day_runs(sig):
     """Stable (month, week, day) stretches, with misreads filtered out.
 
@@ -51,8 +77,8 @@ def day_runs(sig):
       a second and a half survives the first filter and is caught here.
     """
     t = sig[:, IDX["t"]]
-    triples = [tuple(int(v) for v in row)
-               for row in sig[:, [IDX["month"], IDX["week"], IDX["day"]]]]
+    triples = _carry_partial([tuple(int(v) for v in row)
+                              for row in sig[:, [IDX["month"], IDX["week"], IDX["day"]]]])
 
     out = []
     for value, start, end in _runs(triples, t):

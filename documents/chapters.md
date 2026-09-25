@@ -29,6 +29,12 @@ binarised with Otsu rather than a fixed threshold; and in that variant the
 leading "M" of "Month:" is clipped, so the anchor is "Week:", which survives
 both.
 
+A digit can still fail in the dimmed variant — the "5" of Day 5 has only a
+bright template and scores just outside the cutoff in combat. A sample that
+reads some fields and agrees with the full reading right before it is
+therefore taken as that same day. Without this a game ended at its last fully
+read sample, and one video stopped mid-fight half a minute before "YOU WIN".
+
 ## Games
 
 Split where the day counter goes backwards. That is what a restart looks like —
