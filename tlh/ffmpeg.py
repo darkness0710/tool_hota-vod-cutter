@@ -50,6 +50,31 @@ def size(video):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+def has_audio(video):
+    """Whether the file carries an audio stream at all.
+
+    A clip recorded with OBS's desktop audio muted, or exported from a phone
+    editor without sound, has none -- and an encode that maps [0:a] then fails
+    outright instead of producing a silent clip.
+    """
+    err = subprocess.run(
+        [FF, "-hide_banner", "-t", "0.1", "-i", video, "-f", "null", "-"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace").stderr or ""
+    return re.search(r"Stream #\S+.*?: Audio:", err) is not None
+
+
+def audio_layout(video):
+    """Channel layout of the first audio stream ("stereo", "mono", ...), or
+    None when there is no audio or it cannot be read."""
+    err = subprocess.run(
+        [FF, "-hide_banner", "-t", "0.1", "-i", video, "-f", "null", "-"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace").stderr or ""
+    m = re.search(r"Stream #\S+.*?: Audio: [^,]+, \d+ Hz, ([^,]+),", err)
+    return m.group(1).strip() if m else None
+
+
 # ffmpeg prints a ROUNDED decimal frame rate ("29.97 fps"), not the rational
 # the file carries. Passing 29.97 back to -r drifts against 30000/1001 by about
 # a second every nine minutes, which over a five hour VOD walks the audio a

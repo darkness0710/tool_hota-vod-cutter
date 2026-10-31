@@ -1,12 +1,14 @@
 """Run the whole thing for one video."""
 import json
 import os
+import random
 import time
 
 import numpy as np
 
 from . import config as C
 from . import render as render_mod
+from . import insert as insert_mod
 from . import naming, qrcover, screens, segments as seg_mod
 from . import signal as signal_mod
 from . import timeline
@@ -61,8 +63,13 @@ def _load_signal(path, prescale=""):
 def process_video(video, out, workdir, workers=4, render_workers=3,
                   dry_run=False, reuse_signal=True, keep_parts=False,
                   parts_only=False, per_game=False, min_game=0.0,
-                  log=_log):
+                  insert=None, log=_log):
     """Analyse `video`, write the cut to `out`. Returns an exit code.
+
+    `insert` asks for a clip spliced into each per-game video: a dict with
+    `clips` (paths; one is picked per game), `days` (how many day changes),
+    `combat` (before every hero-vs-hero battle) and `gap` (days apart). See
+    tlh/insert.py.
 
     `workdir` holds this video's scratch: the segment list and the rendered
     pieces. Keeping it per-video is what lets a batch run be interrupted and
@@ -214,7 +221,11 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     if per_game:
         return _render_per_game(video, segs, sig, out, workdir, render_workers,
                                 keep_parts, started, stage, log, cover, fps,
-                                min_game)
+                                min_game, insert, frame)
+    if insert:
+        # run.py only passes it with --per-game; said anyway, so a run that
+        # was expected to carry the clip does not quietly come out without.
+        log("  insert: only for one video per game, not inserting here")
 
     partsdir = os.path.join(workdir, "parts")
     stage(f"[4/4] render -> {partsdir if parts_only else out}")
@@ -234,7 +245,7 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
 
 def _render_per_game(video, segs, sig, out, workdir, render_workers,
                      keep_parts, started, stage, log, cover=None, fps="30",
-                     min_game=0.0):
+                     min_game=0.0, insert=None, frame=None):
     """One video per game, instead of one video for the whole stream.
 
     The games come from timeline.played_games, so a file called "(game 3)"
@@ -259,6 +270,8 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
         return 1
 
     stage(f"[4/4] render {len(games)} game(s), one video each")
+    clips = _insert_clips(insert, log)
+    battles = timeline.pvp_battles(sig) if clips else []
 
     # Footage kept by the cut but lying between two games -- a map re-roll, or
     # lobby time that survived -- belongs to no game and lands in none of these
@@ -300,12 +313,17 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
         if blind >= timeline.MIN_GAME:
             log(f"      {hms(blind)} of this span shows no day counter at all; "
                 f"if the stream switched to another game, it is in this video")
-        timeline.write_youtube(timeline.build(sig, part),
+        inserts = []
+        if clips:
+            inserts = _choose_inserts(video, number, part, _runs, battles,
+                                      (g_start, g_end), insert, clips, log)
+        timeline.write_youtube(timeline.build(sig, part, inserts),
                                naming.chapters_path(target))
         rc = render_mod.run(
             video, part, target, render_workers,
             outdir=os.path.join(workdir, f"parts-game{number}"),
-            progress=log, keep_parts=keep_parts, cover=cover, fps=fps)
+            progress=log, keep_parts=keep_parts, cover=cover, fps=fps,
+            inserts=inserts, size=frame)
         if rc:
             failed.append(number)
         else:
@@ -324,3 +342,58 @@ def _render_per_game(video, segs, sig, out, workdir, render_workers,
     if failed:
         log(f"  game(s) that failed to render: {failed}")
     return 1 if failed else 0
+
+
+def _insert_clips(insert, log):
+    """[(path, seconds)] for the clips asked for, or [] to insert nothing.
+
+    Measured once per run, not per game. A clip that cannot be read is
+    dropped with a line saying so, rather than failing a render an hour in.
+    """
+    if not insert or not (insert.get("days") or insert.get("combat")):
+        return []
+    out = []
+    for path in insert.get("clips") or []:
+        try:
+            out.append((path, duration(path)))
+        except (RuntimeError, OSError):
+            log(f"    insert: cannot read {os.path.basename(path)}, skipped")
+    if not out:
+        log("    insert: no usable clip in insert/, nothing inserted")
+    for path, secs in out:
+        log(f"    insert    clip {os.path.basename(path)}  {hms(secs)}")
+    return out
+
+
+def _choose_inserts(video, number, part, runs, battles, span, insert, clips,
+                    log):
+    """Pick the anchors for one game, and say on one line what was picked.
+
+    The line goes to the job card, so it says where the clip landed in the
+    FINISHED video -- the number someone scrubs to in order to check it.
+    """
+    seed = insert_mod.seed_for(os.path.basename(video), number)
+    anchors, note = insert_mod.choose(
+        part, runs, battles, span, combat=bool(insert.get("combat")),
+        days=int(insert.get("days") or 0), gap_days=int(insert.get("gap") or 0),
+        seed=seed)
+    # One clip per game when there are several: the point of offering more
+    # than one is that consecutive videos do not all show the same ask.
+    path, secs = clips[random.Random(seed).randrange(len(clips))]
+    inserts = [(t, path, secs) for t, _kind, _day in anchors]
+
+    asked = int(insert.get("days") or 0)
+    if insert.get("combat"):
+        asked += sum(1 for b, _e in battles if span[0] <= b <= span[1])
+    starts = insert_mod.clip_starts(insert_mod.plan(part, inserts))
+    where = ", ".join(
+        f"{hms(at)} ({'combat, ' if kind == 'combat' else ''}day {day})"
+        if day is not None else f"{hms(at)} ({kind})"
+        for at, (_t, kind, day) in zip(starts, anchors))
+    line = f"    game {number}  insert {len(anchors)}/{asked}"
+    if where:
+        line += f" at {where}"
+    if note:
+        line += f"; {note}"
+    log(line)
+    return inserts

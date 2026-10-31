@@ -17,7 +17,7 @@ ten seconds apart, so anything closer is folded into the one before it.
 import numpy as np
 
 from . import config as C
-from . import daycount
+from . import daycount, insert
 from .signal import IDX
 
 MIN_GAME = 120.0        # a "game" shorter than this is a map re-roll, not a game
@@ -192,18 +192,14 @@ def pvp_battles(sig, min_len=8.0, join_gap=60.0):
     return [(a, b) for a, b in merged if b - a >= min_len]
 
 
-def to_output_time(segments):
-    """Map a source timestamp to its position in the cut video, or None."""
-    spans, acc = [], 0.0
-    for a, b in segments:
-        spans.append((a, b, acc))
-        acc += (b - a) + C.BLACK
-    def convert(src):
-        for a, b, offset in spans:
-            if a <= src <= b:
-                return offset + (src - a)
-        return None
-    return convert
+def to_output_time(segments, inserts=()):
+    """Map a source timestamp to its position in the cut video, or None.
+
+    `inserts` are the clips spliced in (see tlh/insert.py). Every chapter
+    after one moves later by the clip's length -- left out, a chapter list
+    pasted under the video points ten seconds early for the rest of it.
+    """
+    return insert.output_time(insert.plan(segments, inserts))
 
 
 OPPONENT = "Opponent"   # the players are not identified by name; see README
@@ -223,14 +219,15 @@ def played_games(sig):
             for n, (start, end, g_runs) in enumerate(played, 1)]
 
 
-def build(sig, segments):
+def build(sig, segments, inserts=()):
     """Chapter list [(output_seconds, label), ...] for the cut video.
 
     `segments` decides the timeline this is measured against, so passing the
     segments of one game returns that game's chapters, rebased to its own
     00:00: every mark outside those segments converts to None and drops out.
+    `inserts` are clips spliced into that video, which push later marks on.
     """
-    convert = to_output_time(segments)
+    convert = to_output_time(segments, inserts)
     battles = pvp_battles(sig)
 
     marks = []                                  # (source_time, label)

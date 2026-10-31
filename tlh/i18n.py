@@ -51,6 +51,39 @@ VI = {
     "set.saved": "đã lưu",
     "set.clamped": "ngoài khoảng cho phép, đã đặt thành {n}",
     "set.failed": "không lưu được",
+    "set.ins.t": "Chèn đoạn nhắc like & sub",
+    "set.ins.on": "Bật",
+    "set.ins.file": "File",
+    "set.ins.openDir": "Mở insert\\",
+    "set.ins.when": "Chèn khi",
+    "set.ins.day": "Qua ngày (ngẫu nhiên)",
+    "set.ins.count": "Số lần",
+    "set.ins.perGame": "/ ván",
+    "set.ins.combat": "Trước combat PvP",
+    "set.ins.gap": "Cách nhau ít nhất",
+    "set.ins.days": "ngày",
+    "set.ins.random": "Ngẫu nhiên mỗi ván",
+    "set.ins.none": "(chưa có file nào trong insert\\)",
+    "set.ins.d": "Chỉ áp dụng cho chế độ <b>tách theo game</b>. Bỏ clip vào "
+                 "thư mục <code>insert\\</code>; có nhiều file thì chọn "
+                 "<b>Ngẫu nhiên mỗi ván</b> để các video không cùng một clip."
+                 "<br><b>Trước combat</b>: trước mọi trận hero đánh hero "
+                 "(không tính đánh quái), được đặt trước. <b>Qua ngày</b>: "
+                 "chọn ngẫu nhiên trong phần còn trống, không bao giờ là ngày "
+                 "đầu hay ngày cuối của ván.<br>Mọi lần chèn cách nhau ít nhất "
+                 "số ngày ở trên. Ván ít ngày quá thì chèn được bao nhiêu chèn "
+                 "bấy nhiêu, thẻ việc ghi rõ. Chạy lại cùng một video thì clip "
+                 "vẫn nằm đúng chỗ cũ, và timeline .txt tự dời theo.",
+    "ins.sum.on": "Chèn đoạn nhắc: {when} · {file}",
+    "ins.sum.day": "qua ngày ×{n}",
+    "ins.sum.combat": "trước combat",
+    "ins.sum.off": "Chèn đoạn nhắc: tắt",
+    "ins.sum.noFile": "Chèn đoạn nhắc: đang bật nhưng insert\\ chưa có file "
+                      "nào, nên sẽ không chèn",
+    "ins.sum.noWhen": "Chèn đoạn nhắc: đang bật nhưng chưa chọn chèn khi nào, "
+                      "nên sẽ không chèn",
+    "ins.sum.full": "Chèn đoạn nhắc: không áp dụng cho chế độ này",
+    "ins.sum.change": "Đổi",
     "tip.version": "Xem có gì mới trong bản này",
 
     # ---- shared buttons and tips
@@ -76,6 +109,8 @@ VI = {
     "opt.full.t": "Lược bỏ thời gian chờ turn đối thủ, gộp 1 video",
     "opt.full.d": "Một video hoàn chỉnh, kèm 1 file timeline .txt để dán vào "
                   "mô tả YouTube. Đây là cái để đăng.",
+    "opt.full.noInsert": "Không chèn đoạn nhắc like & sub — chỉ chế độ tách "
+                         "theo game mới chèn.",
     "opt.download.t": "Chỉ tải video về, không cắt",
     "opt.download.d": 'Lưu nguyên bản vào <code class="p-in">input\\</code> rồi '
                       "dừng. Để tải sẵn lúc mạng khoẻ, cắt sau — hoặc để giữ "
@@ -203,6 +238,13 @@ VI = {
     "tab.ver": "Phiên bản",
     "h2.ver": "Phiên bản",
     "ver.current": "hiện tại",
+    "ver.4.3.d": "<ul>"
+                 "<li>Mới: <b>chèn đoạn nhắc like &amp; sub</b> vào mỗi video tách theo game. Bỏ clip của mình vào thư mục <code>insert\\</code>, bật ở tab <b>Cài đặt</b>.</li>"
+                 "<li>Chọn chèn <b>trước combat</b> (trước mọi trận hero đánh hero), <b>khi qua ngày</b> (chọn ngẫu nhiên, đặt được số lần mỗi ván), hoặc cả hai. Các lần chèn cách nhau ít nhất số ngày tự đặt, và không bao giờ rơi vào ngày đầu hay ngày cuối của ván.</li>"
+                 "<li>Clip được đưa về đúng khung hình, tốc độ khung hình và kiểu âm thanh của video — quay dọc bằng điện thoại hay 60 fps bằng OBS đều được, không có tiếng cũng được. Có fade như mọi chỗ cắt khác.</li>"
+                 "<li><b>Timeline .txt tự dời theo</b>, nên các mốc dán lên YouTube vẫn đúng. Thẻ việc ghi rõ clip nằm ở phút nào trong từng ván.</li>"
+                 "<li>Chế độ gộp 1 video <b>không chèn</b>.</li>"
+                 "</ul>",
     "ver.4.2.d": "<ul>"
                  "<li>Sửa lỗi <b>video tách theo game bị cắt giữa trận combat cuối</b>. Trong combat, ô ngày ở góc dưới bị làm mờ và số <b>4, 5, 7</b> đọc không ra, nên tool tưởng ván đã hết ở lần cuối đọc được đủ ngày — có video dừng ở round 2, mất nửa phút cuối trận và cả bảng “YOU WIN”.</li>"
                  "<li>Giờ nếu tháng và tuần vẫn đọc được và khớp với ngay trước đó, tool coi như vẫn là ngày đó, nên ván kéo tới hết trận. Chạy thử lại trên nguyên stream 5 tiếng 26 phút: ván bị lỗi giờ kết thúc sau “YOU WIN”, 9 ván còn lại không đổi.</li>"
@@ -432,6 +474,40 @@ EN = {
     "set.saved": "saved",
     "set.clamped": "outside the allowed range, set to {n}",
     "set.failed": "could not save",
+    "set.ins.t": "Insert a like & subscribe clip",
+    "set.ins.on": "On",
+    "set.ins.file": "File",
+    "set.ins.openDir": "Open insert\\",
+    "set.ins.when": "Insert",
+    "set.ins.day": "At a day change (random)",
+    "set.ins.count": "Times",
+    "set.ins.perGame": "/ game",
+    "set.ins.combat": "Before PvP combat",
+    "set.ins.gap": "At least",
+    "set.ins.days": "days apart",
+    "set.ins.random": "A random one per game",
+    "set.ins.none": "(no file in insert\\ yet)",
+    "set.ins.d": "Applies to <b>one video per game</b> only. Put the clip in "
+                 "the <code>insert\\</code> folder; with several there, pick "
+                 "<b>A random one per game</b> so the videos do not all carry "
+                 "the same one.<br><b>Before combat</b>: before every "
+                 "hero-vs-hero battle (not fights against neutrals), placed "
+                 "first. <b>Day change</b>: picked at random from what is "
+                 "left, never the first or the last day of the game.<br>Every "
+                 "insert is at least the number of days above from the next. "
+                 "A game with too few days gets as many as fit, and the job "
+                 "card says so. Running the same video again puts the clip in "
+                 "the same places, and the timeline .txt moves with it.",
+    "ins.sum.on": "Like & subscribe clip: {when} · {file}",
+    "ins.sum.day": "day change ×{n}",
+    "ins.sum.combat": "before combat",
+    "ins.sum.off": "Like & subscribe clip: off",
+    "ins.sum.noFile": "Like & subscribe clip: on, but insert\\ has no file "
+                      "in it, so nothing will be inserted",
+    "ins.sum.noWhen": "Like & subscribe clip: on, but neither moment is "
+                      "ticked, so nothing will be inserted",
+    "ins.sum.full": "Like & subscribe clip: not used in this mode",
+    "ins.sum.change": "Change",
     "tip.version": "What is new in this build",
 
     "btn.open": "Open",
@@ -455,6 +531,8 @@ EN = {
     "opt.full.t": "Drop the waiting on the opponent's turn, one video in total",
     "opt.full.d": "One finished video, with a timeline .txt to paste into the "
                   "YouTube description. This is the one to upload.",
+    "opt.full.noInsert": "No like & subscribe clip — only one video per game "
+                         "gets it.",
     "opt.download.t": "Only download the video, cut nothing",
     "opt.download.d": 'Save the original into <code class="p-in">input\\</code> '
                       "and stop. For downloading while the connection is good "
@@ -574,6 +652,13 @@ EN = {
     "tab.ver": "Version",
     "h2.ver": "Version",
     "ver.current": "current",
+    "ver.4.3.d": "<ul>"
+                 "<li>New: <b>a like &amp; subscribe clip</b> spliced into every per-game video. Put your clip in the <code>insert\\</code> folder and switch it on in the <b>Settings</b> tab.</li>"
+                 "<li>Insert it <b>before combat</b> (before every hero-vs-hero battle), <b>at a day change</b> (picked at random, as many per game as you set), or both. Inserts stay at least the number of days you set apart, and never land on a game's first or last day.</li>"
+                 "<li>The clip is brought to the video's own frame size, frame rate and audio layout — portrait off a phone or 60 fps out of OBS both work, with or without sound — and fades in and out like every other cut.</li>"
+                 "<li><b>The timeline .txt moves with it</b>, so the chapters pasted on YouTube stay right. The job card says where in each game the clip landed.</li>"
+                 "<li>The one-video-for-the-whole-stream mode <b>does not insert</b>.</li>"
+                 "</ul>",
     "ver.4.2.d": "<ul>"
                  "<li>Fixed <b>per-game videos cut off in the middle of the last fight</b>. Combat dims the day counter at the bottom right, and the digits <b>4, 5 and 7</b> could not be read there, so a game was taken to end at its last full reading — one video stopped in round 2, losing the last half minute of the fight and the “YOU WIN” screen.</li>"
                  "<li>A reading whose month and week still agree with the one just before it now counts as the same day, so the game runs to the end of the fight. Re-run over the whole 5h26 stream: the broken game now ends after “YOU WIN”, and the other nine are unchanged.</li></ul>",

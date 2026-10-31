@@ -12,6 +12,7 @@ a preference that disappears every time someone reclaims disk space is worse
 than having no preference at all.
 """
 import json
+import os
 
 from .config import ROOT
 
@@ -62,18 +63,50 @@ FIELDS = {
     # how long one ffmpeg piece may legitimately run without printing is not
     # measured here. See WATCHED_STAGES in tlh/web.py.
     "stall_restart_minutes": {"default": 30, "min": 0, "max": 600},
+
+    # The "like and subscribe" clip spliced into each per-game video; see
+    # tlh/insert.py. Off until someone turns it on: it changes every video
+    # that comes out, which nobody should discover after uploading one.
+    #
+    # Switches are ints, 0 or 1, so every field still has one shape and one
+    # range check -- a JSON true would arrive as 1 anyway.
+    "insert_on": {"default": 0, "min": 0, "max": 1},
+    # Which file in insert/: a bare name, "" for the first one there, or
+    # RANDOM for a different pick per game. Only the name is stored; whether
+    # it still exists is checked when a run starts, because the folder is
+    # filled by hand.
+    "insert_file": {"default": "", "kind": "name"},
+    "insert_day_on": {"default": 1, "min": 0, "max": 1},
+    # How many day changes per game get the clip. Ten is far past anything a
+    # viewer would sit through; the cap is there to stop a typo, not a taste.
+    "insert_days": {"default": 1, "min": 1, "max": 10},
+    "insert_combat": {"default": 1, "min": 0, "max": 1},
+    # In-game days between two clips, battles included.
+    "insert_gap_days": {"default": 2, "min": 0, "max": 30},
 }
+
+RANDOM = "*"            # not a legal Windows filename, so never a real one
 
 DEFAULTS = {name: spec["default"] for name, spec in FIELDS.items()}
 
 
 def _clean(raw):
-    """Known keys only, each an int inside its own range."""
+    """Known keys only, each an int inside its own range or a bare name."""
     out = dict(DEFAULTS)
     if not isinstance(raw, dict):
         return out
     for name, spec in FIELDS.items():
         if name not in raw:
+            continue
+        if spec.get("kind") == "name":
+            # A bare file name or nothing: no separator, so a hand-edited
+            # settings.json cannot point a run at a file outside insert/.
+            value = raw[name] if isinstance(raw[name], str) else ""
+            value = value.strip()
+            ok = value == RANDOM or (
+                os.path.basename(value) == value and "/" not in value
+                and ".." not in value)
+            out[name] = value if ok else spec["default"]
             continue
         try:
             value = int(raw[name])

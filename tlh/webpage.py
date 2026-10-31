@@ -245,6 +245,24 @@ _HTML = r"""<!doctype html>
                  font-variant-numeric: tabular-nums; }
   .setrow i { color: var(--dim); font-style: normal; line-height: 1.6; }
   #setMsg { font-size: 12px; }
+  .setin select { max-width: 100%; }
+  .setin input[type=checkbox] { width: auto; accent-color: var(--accent);
+                                margin: 0; }
+  .setin label { font-weight: 400; display: inline-flex; gap: 6px;
+                 align-items: center; }
+  /* The rows under the switch belong to it, and say so by sitting in from
+     it -- and fade when it is off, so the numbers in them do not read as
+     something that will happen. */
+  .setsub { display: grid; gap: 10px; padding-left: 14px;
+            border-left: 2px solid var(--line); }
+  .setsub.off { opacity: .45; }
+  .setsub .k { color: var(--dim); min-width: 120px; }
+  video.clip { width: 320px; max-width: 100%; background: #000;
+               border-radius: 8px; }
+  .opt i.noins { margin-top: 4px; font-size: 12px; }
+  #insSum { border-top: 1px solid var(--line); margin-top: 8px;
+            padding-top: 10px; }
+  #insSum button { margin-left: 8px; vertical-align: 1px; }
   /* A note that carries more than one fact is a LIST, not a paragraph with
      breaks in it. Three facts run together read as one wall and get skipped;
      bulleted, each is a thing the eye can land on and leave. The bullet also
@@ -620,6 +638,8 @@ _HTML = r"""<!doctype html>
       <b data-t="opt.full.t">Lược bỏ thời gian chờ turn đối thủ, gộp 1 video</b>
       <i data-th="opt.full.d">Một video hoàn chỉnh, kèm 1 file timeline .txt để dán vào mô tả
          YouTube. Đây là cái để đăng.</i>
+      <i class="noins" data-t="opt.full.noInsert">Không chèn đoạn nhắc like &amp;
+         sub — chỉ chế độ tách theo game mới chèn.</i>
     </span></label>
     <label class="opt"><input type="radio" name="mode" value="download"><span>
       <b data-t="opt.download.t">Chỉ tải video về, không cắt</b>
@@ -639,6 +659,10 @@ _HTML = r"""<!doctype html>
          Nhanh nhất.</i>
     </span></label>
     </details>
+    <!-- Filled by insSummary(): a setting that changes every video coming
+         out is said where the run is started, not only on the tab where it
+         was switched on weeks ago. -->
+    <div class="note" id="insSum"></div>
     <dl class="paths">
       <dt data-t="paths.video">Video ra</dt><dd><span class="p-out">output\</span><button
         class="small" data-open="output" data-t="btn.open" data-tt="tip.openFolder"
@@ -777,6 +801,43 @@ _HTML = r"""<!doctype html>
         này.<br>Tự chạy lại tối đa <b>3 lần</b> liên tiếp rồi dừng, để
         không quay vòng vô tận với một link hỏng.</i>
     </div>
+    <div class="setrow">
+      <label data-t="set.ins.t">Chèn đoạn nhắc like &amp; sub</label>
+      <div class="setin">
+        <label><input type="checkbox" id="setInsOn">
+          <span data-t="set.ins.on">Bật</span></label>
+      </div>
+      <div class="setsub" id="setInsSub">
+        <div class="setin">
+          <span class="k" data-t="set.ins.file">File</span>
+          <select id="setInsFile"></select>
+          <button class="small" id="setInsPlay" data-t="btn.preview"
+            data-tt="tip.preview" title="Nạp video này vào khung xem">Xem</button>
+          <button class="small" data-open="insert" data-t="set.ins.openDir"
+            data-tt="tip.openFolder" title="Mở thư mục này trong Explorer">Mở insert\</button>
+        </div>
+        <video id="setInsVid" class="clip" controls preload="metadata" hidden></video>
+        <div class="setin">
+          <span class="k" data-t="set.ins.when">Chèn khi</span>
+          <label><input type="checkbox" id="setInsDay">
+            <span data-t="set.ins.day">Qua ngày (ngẫu nhiên)</span></label>
+          <span data-t="set.ins.count">Số lần</span>
+          <input type="number" id="setInsDays" min="1" max="10" step="1">
+          <span data-t="set.ins.perGame">/ ván</span>
+        </div>
+        <div class="setin">
+          <span class="k"></span>
+          <label><input type="checkbox" id="setInsCombat">
+            <span data-t="set.ins.combat">Trước combat PvP</span></label>
+        </div>
+        <div class="setin">
+          <span class="k" data-t="set.ins.gap">Cách nhau ít nhất</span>
+          <input type="number" id="setInsGap" min="0" max="30" step="1">
+          <span data-t="set.ins.days">ngày</span>
+        </div>
+      </div>
+      <i data-th="set.ins.d">Chỉ áp dụng cho chế độ <b>tách theo game</b>.</i>
+    </div>
     <!-- One button for the card rather than one per setting. Two Save buttons
          raise a question nobody should have to answer -- whether pressing one
          discards what was typed in the other -- and the answer here is no:
@@ -796,7 +857,24 @@ _HTML = r"""<!doctype html>
     <dl class="rel">
       <dt class="now"><b>__VERSION__</b> <span class="tag"
         data-t="ver.current">hiện tại</span></dt>
-      <dd class="now" data-th="ver.4.2.d"><ul>
+      <dd class="now" data-th="ver.4.3.d"><ul>
+        <li>Mới: <b>chèn đoạn nhắc like &amp; sub</b> vào mỗi video tách
+          theo game. Bỏ clip của mình vào thư mục <code>insert\</code>, bật
+          ở tab <b>Cài đặt</b>.</li>
+        <li>Chọn chèn <b>trước combat</b> (trước mọi trận hero đánh hero),
+          <b>khi qua ngày</b> (chọn ngẫu nhiên, đặt được số lần mỗi ván), hoặc
+          cả hai. Các lần chèn cách nhau ít nhất số ngày tự đặt, và không
+          bao giờ rơi vào ngày đầu hay ngày cuối của ván.</li>
+        <li>Clip được đưa về đúng khung hình, tốc độ khung hình và kiểu âm
+          thanh của video &mdash; quay dọc bằng điện thoại hay 60 fps bằng
+          OBS đều được, không có tiếng cũng được. Có fade như mọi chỗ cắt
+          khác.</li>
+        <li><b>Timeline .txt tự dời theo</b>, nên các mốc dán lên YouTube
+          vẫn đúng. Thẻ việc ghi rõ clip nằm ở phút nào trong từng ván.</li>
+        <li>Chế độ gộp 1 video <b>không chèn</b>.</li>
+      </ul></dd>
+      <dt><b>4.2</b></dt>
+      <dd data-th="ver.4.2.d"><ul>
         <li>Sửa lỗi <b>video tách theo game bị cắt giữa trận combat
           cuối</b>. Trong combat, ô ngày ở góc dưới bị làm mờ và số
           <b>4, 5, 7</b> đọc không ra, nên tool tưởng ván đã hết ở lần cuối
@@ -1327,6 +1405,8 @@ function jobCard(j, now) {
   if (j.output) kv.push([j.mode === "download" ? "File đã tải" : "Video ra",
                          j.output + (j.output_size ? "  (" + j.output_size + ")" : "")]);
   if (j.chapters_path) kv.push(["Timeline (.txt)", j.chapters_path]);
+  // One row per game, so the times can be read off and scrubbed to.
+  (j.inserts || []).forEach((line, n) => kv.push([n ? "" : "Chèn đoạn nhắc", line]));
 
   if (kv.length) {
     html += '<dl class="kv">';
@@ -1380,11 +1460,23 @@ async function refresh() {
   // Settings come down with every poll, but a box is only refilled when it is
   // NOT being edited: the page refreshes on a timer, and overwriting a
   // half-typed number every second makes the field impossible to use.
-  for (const [key, id] of Object.entries(SET_BOXES)) {
-    const box = document.getElementById(id);
-    if (box && document.activeElement !== box && (s.settings || {})[key] != null)
-      box.value = s.settings[key];
+  //
+  // And not at all once anything on the card has been changed and not yet
+  // saved. Focus alone covered one box; with a switch, a list and three
+  // boxes on the card, ticking one and moving on to the next put the first
+  // back the way it was a second later.
+  if (!setDirty) {
+    for (const [key, id] of Object.entries(SET_BOXES)) {
+      const box = document.getElementById(id);
+      if (box && document.activeElement !== box && (s.settings || {})[key] != null)
+        box.value = s.settings[key];
+    }
+    for (const [key, id] of Object.entries(SET_CHECKS))
+      document.getElementById(id).checked = !!(s.settings || {})[key];
   }
+  insFiles(s);
+  insShade();
+  insSummary(s);
 
   const d = s.drive, pct = d.total ? Math.round(100 * d.used / d.total) : 0;
   document.getElementById("dv").textContent = "Ổ " + d.root;
@@ -1552,7 +1644,86 @@ document.addEventListener("click", async e => {
 // the Save button reads them, and a second setting is exactly the point at
 // which those two start disagreeing about which settings exist.
 const SET_BOXES = { min_game_minutes: "setMinGame",
-                    stall_restart_minutes: "setStall" };
+                    stall_restart_minutes: "setStall",
+                    insert_days: "setInsDays",
+                    insert_gap_days: "setInsGap" };
+// Switches, stored as 0 / 1.
+const SET_CHECKS = { insert_on: "setInsOn", insert_day_on: "setInsDay",
+                     insert_combat: "setInsCombat" };
+const INS_RANDOM = "*";             // tlh/settings.py RANDOM
+let setDirty = false;
+for (const ev of ["input", "change"])
+  document.getElementById("tab-set").addEventListener(ev, e => {
+    if (e.target.matches("input, select")) setDirty = true;
+    insShade();
+  });
+
+// The list of clips in insert/. Rebuilt only when the folder changes, like
+// the source lists on the other tabs, so a pick is not thrown away each poll.
+// What is SHOWN selected is the file a run would actually use: a stored ""
+// means "the first one", and a stored name that has since been deleted falls
+// back the same way -- tlh/web.py insert_clips() decides it identically.
+function insFiles(s) {
+  const sel = document.getElementById("setInsFile");
+  const names = (s.insert_files || []).map(f => f.name);
+  const sig = names.join("|") + "#" + LANG;
+  if (sel.dataset.sig !== sig) {
+    sel.dataset.sig = sig;
+    let html = names.map(n => '<option value="' + esc(n) + '">' + esc(n) + "</option>").join("");
+    if (names.length > 1)
+      html += '<option value="' + INS_RANDOM + '">' + esc(T("set.ins.random")) + "</option>";
+    sel.innerHTML = html || '<option value="">' + esc(T("set.ins.none")) + "</option>";
+  }
+  if (setDirty || document.activeElement === sel) return;
+  const want = (s.settings || {}).insert_file || "";
+  if (want === INS_RANDOM && names.length > 1) sel.value = INS_RANDOM;
+  else sel.value = names.indexOf(want) >= 0 ? want : (names[0] || "");
+}
+
+function insShade() {
+  document.getElementById("setInsSub").classList.toggle(
+    "off", !document.getElementById("setInsOn").checked);
+}
+
+document.getElementById("setInsPlay").onclick = () => {
+  const sel = document.getElementById("setInsFile");
+  const first = sel.options[0] ? sel.options[0].value : "";
+  const name = sel.value === INS_RANDOM ? first : sel.value;
+  const vid = document.getElementById("setInsVid");
+  if (!name) { vid.hidden = true; return; }
+  vid.hidden = false;
+  vid.src = "/media?name=" + encodeURIComponent("insert/" + name);
+  vid.load();
+};
+
+// One line on the step-1 card saying what the next run will do with the
+// clip, from what is SAVED -- that is what run.py will be given.
+function insSummary(s) {
+  const el = document.getElementById("insSum");
+  const st = s.settings || {}, m = mode();
+  const files = (s.insert_files || []).map(f => f.name);
+  let text = "", warn = false;
+  if (m === "games") {
+    if (!st.insert_on) text = T("ins.sum.off");
+    else if (!files.length) { text = T("ins.sum.noFile"); warn = true; }
+    else if (!st.insert_day_on && !st.insert_combat) { text = T("ins.sum.noWhen"); warn = true; }
+    else {
+      const when = [];
+      if (st.insert_day_on) when.push(T("ins.sum.day").replace("{n}", st.insert_days));
+      if (st.insert_combat) when.push(T("ins.sum.combat"));
+      const file = st.insert_file === INS_RANDOM && files.length > 1
+        ? T("set.ins.random")
+        : (files.indexOf(st.insert_file) >= 0 ? st.insert_file : files[0]);
+      text = T("ins.sum.on").replace("{when}", when.join(", ")).replace("{file}", file);
+    }
+  } else if (m === "full" && st.insert_on) {
+    text = T("ins.sum.full");
+  }
+  el.hidden = !text;
+  el.className = warn ? "note warn" : "note";
+  if (text) el.innerHTML = esc(text) +
+    '<button class="small" data-gotab="set">' + esc(T("ins.sum.change")) + "</button>";
+}
 
 document.getElementById("setSave").onclick = async () => {
   const msg = document.getElementById("setMsg");
@@ -1561,14 +1732,19 @@ document.getElementById("setSave").onclick = async () => {
     const n = parseInt(document.getElementById(id).value, 10);
     asked[key] = isNaN(n) ? 0 : n;
   }
+  for (const [key, id] of Object.entries(SET_CHECKS))
+    asked[key] = document.getElementById(id).checked ? 1 : 0;
+  asked.insert_file = document.getElementById("setInsFile").value;
   const { ok, data } = await post("/api/settings", asked);
   if (!ok) { msg.textContent = T("set.failed"); return; }
+  setDirty = false;
   const stored = data.settings || {}, clamped = [];
   for (const [key, id] of Object.entries(SET_BOXES)) {
     if (stored[key] == null) continue;
     document.getElementById(id).value = stored[key];
     if (stored[key] !== asked[key]) clamped.push(stored[key]);
   }
+  if (LAST) { LAST.settings = stored; insSummary(LAST); }
   msg.textContent = clamped.length
     ? T("set.clamped").replace("{n}", clamped.join(", ")) : T("set.saved");
   setTimeout(() => { msg.textContent = ""; }, 2600);

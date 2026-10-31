@@ -1,6 +1,8 @@
 # VODs and renders are far too large to track
 input/
 output/
+# the streamer's own clip for the per-game insert
+insert/
 *.mp4
 *.mkv
 *.ts

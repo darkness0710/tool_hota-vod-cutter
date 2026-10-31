@@ -19,10 +19,62 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import config as C
 from . import encoder
-from .ffmpeg import FF
+from . import insert as insert_mod
+from .ffmpeg import FF, audio_layout, has_audio
+
+
+def _clip(job):
+    """Encode one spliced-in clip so it joins the pieces around it.
+
+    The concat at the end is a stream copy, which only works when every piece
+    agrees on size, frame rate, pixel format and audio layout. The clip is
+    whatever the streamer recorded -- 60 fps out of OBS, portrait off a phone,
+    with or without sound -- so it is brought to the VOD's own numbers here:
+    fitted inside the frame and padded with black rather than stretched, at
+    the VOD's rate, in the VOD's channel layout, and given a silent track if
+    it has none. The layout is not a detail: a stereo clip joined into a mono
+    VOD came out as a file that called itself mono throughout and played the
+    clip's audio wrong.
+
+    The same fade in, fade out and black hold as a segment, so the clip looks
+    like a cut in the video rather than something pasted into it.
+    """
+    clip, secs, i, is_last, outdir, codec, qflag, fps, size, layout = job
+    out = os.path.join(outdir, f"seg{i:04d}.mp4")
+    fade_out_at = max(0.0, secs - C.FADE)
+    vf = ""
+    if size:
+        w, h = size
+        vf = (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+              f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,")
+    vf += (f"setsar=1,format=yuv420p,"
+           f"fade=t=in:st=0:d={C.FADE},"
+           f"fade=t=out:st={fade_out_at:.3f}:d={C.FADE}")
+    af = (f"aresample=44100,aformat=channel_layouts={layout},"
+          f"afade=t=in:st=0:d={C.FADE},"
+          f"afade=t=out:st={fade_out_at:.3f}:d={C.FADE}")
+    if not is_last:
+        vf += f",tpad=stop_mode=add:stop_duration={C.BLACK}:color=black"
+        af += f",apad=pad_dur={C.BLACK}"
+    cmd = [FF, "-v", "error", "-i", str(clip)]
+    if has_audio(str(clip)):
+        cmd += ["-filter_complex", f"[0:v]{vf}[v];[0:a]{af}[aout]"]
+    else:
+        cmd += ["-f", "lavfi", "-t", f"{secs:.3f}",
+                "-i", f"anullsrc=r=44100:cl={layout}",
+                "-filter_complex", f"[0:v]{vf}[v];[1:a]{af}[aout]"]
+    cmd += ["-map", "[v]", "-map", "[aout]",
+            "-c:v", codec] + encoder.quality_args(qflag) + [
+        "-r", fps, "-fps_mode", "cfr",
+        "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-y", out]
+    rc = subprocess.call(cmd, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.STDOUT)
+    return i, rc
 
 
 def _one(job):
+    if job[0] == "clip":
+        return _clip(job[1:])
     video, i, a, b, is_last, outdir, codec, qflag, cover, fps = job
     dur = b - a
     out = os.path.join(outdir, f"seg{i:04d}.mp4")
@@ -78,11 +130,15 @@ def _one(job):
 
 
 def run(video, segments, out, workers=3, outdir="parts", progress=print,
-        keep_parts=False, parts_only=False, cover=None, fps="60"):
+        keep_parts=False, parts_only=False, cover=None, fps="60",
+        inserts=(), size=None):
     """Render `segments` of `video` into `out`. Returns an exit code.
 
     `cover` is (image, x, y, w, h) painted over every frame, or None.
     `fps` is the source's own rate, as a string ffmpeg -r accepts.
+    `inserts` are clips to splice in, as tlh/insert.py plans them, and `size`
+    the source's (w, h) they are fitted to. The QR cover is not painted on a
+    clip: it is the streamer's own recording, with no donation code in it.
 
     `parts_only` stops once the pieces are written, without concatenating
     them. When the question is what the detector decided, the pieces ARE the
@@ -91,9 +147,17 @@ def run(video, segments, out, workers=3, outdir="parts", progress=print,
     """
     os.makedirs(outdir, exist_ok=True)
     codec, qflag = encoder.detect(log=progress)
-    jobs = [(video, i, a, b, i == len(segments) - 1, outdir, codec, qflag,
-             cover, fps)
-            for i, (a, b) in enumerate(segments)]
+    pieces = insert_mod.plan(segments, inserts)
+    layout = (audio_layout(video) or "stereo") if inserts else None
+    jobs = []
+    for i, piece in enumerate(pieces):
+        is_last = i == len(pieces) - 1
+        if piece[0] == "clip":
+            jobs.append(("clip", piece[1], piece[2], i, is_last, outdir,
+                         codec, qflag, fps, size, layout))
+        else:
+            jobs.append((video, i, piece[1], piece[2], is_last, outdir,
+                         codec, qflag, cover, fps))
 
     done, started, failed = 0, time.time(), []
     with ThreadPoolExecutor(workers) as pool:
@@ -142,16 +206,16 @@ def run(video, segments, out, workers=3, outdir="parts", progress=print,
         return 1
 
     if parts_only:
-        pieces = sorted(n for n in os.listdir(outdir) if n.endswith(".mp4"))
-        size = sum(os.path.getsize(os.path.join(outdir, n)) for n in pieces)
-        progress(f"    {len(pieces)} piece(s), {size/2**30:.2f} GiB, kept in "
+        files = sorted(n for n in os.listdir(outdir) if n.endswith(".mp4"))
+        total = sum(os.path.getsize(os.path.join(outdir, n)) for n in files)
+        progress(f"    {len(files)} piece(s), {total/2**30:.2f} GiB, kept in "
                  f"{outdir}")
         progress("    parts only: not concatenating")
         return 0
 
     listing = os.path.join(outdir, "concat.txt")
     with open(listing, "w") as fh:
-        for i in range(len(segments)):
+        for i in range(len(pieces)):
             fh.write(f"file 'seg{i:04d}.mp4'\n")
     rc = subprocess.call(
         [FF, "-v", "error", "-f", "concat", "-safe", "0", "-i", listing,

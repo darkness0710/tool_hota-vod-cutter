@@ -64,6 +64,7 @@ python run.py -i D:\vods -o D:\cut      # different folders
 | `--dry-run` | analyse and write the segment list, no render |
 | `--parts-only` | render the pieces into `work/<name>/parts`, do not join them |
 | `--per-game` | one video per game, `[DD-MM-YYYY] Opponent (game N).mp4`, instead of one for the whole stream |
+| `--insert-clip PATH` | with `--per-game`, splice this clip into each video; repeatable, one picked at random per game. Needs `--insert-days N` and/or `--insert-combat`; `--insert-gap DAYS` keeps them apart (default 2). See [documents/insert.md](documents/insert.md) |
 | `--keep-parts` | join them, but keep the pieces too |
 | `--force` | re-render even if the output already exists |
 | `--reanalyse` | ignore the cached signal and decode again |
@@ -129,7 +130,8 @@ tlh/
   qrcover.py            finds the donation QR once, for render.py to paint over
   segments.py           the keep/cut rule
   timeline.py           chapters
-  render.py             fades, black holds, QR cover, encode, concat
+  insert.py             where the like & subscribe clip goes in each game
+  render.py             fades, black holds, QR cover, clips, encode, concat
   process.py            runs the above for one video
 templates/              reference crops, needed at runtime -- do not delete
 assets/
@@ -141,6 +143,7 @@ tools/
   labels_reference.csv  24 hand-checked timestamps, the regression net
   labels_bulwark.csv    a second net, from a second VOD
 input/  output/  work/  data (git-ignored)
+insert/                 the streamer's own clip(s) for the insert (git-ignored)
 ```
 
 ## Details

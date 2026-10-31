@@ -45,6 +45,11 @@ WORK_DIR = ROOT / "work"
 JOBS_DIR = WORK_DIR / "jobs"
 INPUT_DIR = ROOT / "input"
 OUTPUT_DIR = ROOT / "output"
+# The clip(s) spliced into per-game videos. A folder of its own rather than a
+# file in input/: everything in input/ gets a Run button and goes when input/
+# is cleared, and a ten-second clip is neither a VOD nor disposable. No Dọn
+# button touches it.
+INSERT_DIR = ROOT / "insert"
 # Spared when work/ is cleared, for the reason scripts/clear.ps1 spares it: it
 # maps each input to the output it produced, and losing it makes a re-run
 # render a duplicate under a "(2)" name instead of skipping.
@@ -210,6 +215,9 @@ def _update(job_id, **fields):
             recent.append(round(gap, 1))
             del recent[:-5]
             job["gap"] = max(recent)
+        line = fields.pop("insert_line", None)
+        if line:
+            job.setdefault("inserts", []).append(line)
         job.update(fields)
         job["updated"] = now
         _save(job)
@@ -304,6 +312,12 @@ PATTERNS = [
                 "detail": "đã tải xong, không cắt"}),
     (re.compile(r"^\s*(\d+) video\(s\) in ([\d.]+) min total"),
      lambda m: {"detail": f"{m.group(1)} video theo game, {m.group(2)} phút"}),
+    # Where the clip landed in one game's video. Kept per game in a list of
+    # its own (see _update) rather than in `detail`, which the next line
+    # overwrites: this is the line someone wants to read after the run, to
+    # scrub to those times and check.
+    (re.compile(r"^\s*game (\d+)\s+insert (\d+)/(\d+)(?: at (.+?))?(?:; (.+?))?\s*$"),
+     lambda m: {"insert_line": _insert_text(m)}),
     (re.compile(r"^\s*game (\d+)\s+(\S+) in (\d+) segment"),
      lambda m: {"stage": "rendering",
                 "detail": f"game {m.group(1)}: {m.group(2)} trong {m.group(3)} đoạn"}),
@@ -352,6 +366,22 @@ PATTERNS = [
     (re.compile(r"^ERROR:\s+(.+?)\s*$"), lambda m: {"error": m.group(1)}),
     (re.compile(r"^\s*NOT ENOUGH SPACE\.\s+(.+?)\s*$"), lambda m: {"error": m.group(1)}),
 ]
+
+
+def _insert_text(m):
+    """One game's insert line, worded for the card."""
+    text = f"game {m.group(1)}: chèn {m.group(2)}/{m.group(3)}"
+    if m.group(4):
+        text += " lúc " + m.group(4).replace("day ", "ngày ")
+    note = m.group(5) or ""
+    short = re.match(r"only (\d+) day change", note)
+    if short:
+        text += f" (chỉ {short.group(1)} lần qua ngày đủ cách nhau)"
+    elif note.startswith("no day change"):
+        text += " (không có lần qua ngày nào giữa ngày đầu và ngày cuối)"
+    elif note:
+        text += f" ({note})"
+    return text
 
 
 def _parse(line):
@@ -424,6 +454,39 @@ def _reader(job_id, proc, log_path):
         _procs.pop(job_id, None)
 
 
+def insert_clips(prefs):
+    """The clip file(s) the Cài đặt tab points at, as paths; [] for none.
+
+    "" means the first video in insert/ -- with one file there, which is the
+    usual case, nobody has to pick anything. A named file that has since been
+    removed falls back the same way rather than silently inserting nothing.
+    """
+    names = [f["name"] for f in _listing(INSERT_DIR)]
+    if not names:
+        return []
+    wanted = prefs.get("insert_file") or ""
+    if wanted == settings_mod.RANDOM:
+        return [INSERT_DIR / n for n in names]
+    return [INSERT_DIR / (wanted if wanted in names else names[0])]
+
+
+def _insert_args(prefs):
+    """run.py flags for the insert, or [] when it is off or has nothing."""
+    days = prefs["insert_days"] if prefs["insert_day_on"] else 0
+    combat = bool(prefs["insert_combat"])
+    clips = insert_clips(prefs)
+    if not prefs["insert_on"] or not clips or not (days or combat):
+        return []
+    args = []
+    for clip in clips:
+        args += ["--insert-clip", str(clip)]
+    if days:
+        args += ["--insert-days", str(days)]
+    if combat:
+        args.append("--insert-combat")
+    return args + ["--insert-gap", str(prefs["insert_gap_days"])]
+
+
 def start_job(url=None, filename=None, mode="full"):
     """Spawn run.py for one URL or one file in input/. Returns the job id."""
     args = [sys.executable, "run.py", "--live-progress"]
@@ -441,9 +504,11 @@ def start_job(url=None, filename=None, mode="full"):
         # minimum can apply to. Read at spawn time rather than held in memory:
         # the value the run uses is then the value the page was showing when
         # the button was pressed.
-        minutes = settings_mod.load()["min_game_minutes"]
+        prefs = settings_mod.load()
+        minutes = prefs["min_game_minutes"]
         if minutes:
             args += ["--min-game", str(minutes)]
+        args += _insert_args(prefs)
     elif mode == "download":
         args.append("--download-only")
 
@@ -736,7 +801,7 @@ def _reveal(where, name=None):
     folder and the return code is ignored for a file.
     """
     folders = {"input": INPUT_DIR, "output": OUTPUT_DIR,
-               "work": ROOT / "work", "root": ROOT}
+               "work": ROOT / "work", "insert": INSERT_DIR, "root": ROOT}
     target = folders.get(where)
     if target is None:
         return False, "không mở chỗ đó"
@@ -928,7 +993,10 @@ def _busy_with(name):
     return None
 
 
-FOLDERS = {"input": INPUT_DIR, "output": OUTPUT_DIR}
+# insert/ is here for the preview on the Cài đặt tab: /media resolves names
+# through this table, and the clip is worth seeing before it goes into
+# every video.
+FOLDERS = {"input": INPUT_DIR, "output": OUTPUT_DIR, "insert": INSERT_DIR}
 
 
 def qualified_video(ref):
@@ -1263,6 +1331,7 @@ def _state():
             # project lives.
             "paths": {"root": str(ROOT), "input": str(INPUT_DIR),
                       "output": str(OUTPUT_DIR), "work": str(WORK_DIR),
+                      "insert": str(INSERT_DIR),
                       "parts": os.path.join(str(ROOT), "work",
                                             "<tên video>", "parts") + os.sep},
             "folders": {"input": _folder_stats(INPUT_DIR),
@@ -1280,6 +1349,7 @@ def _state():
             "settings": settings_mod.load(),
             "settings_fields": settings_mod.FIELDS,
             "inputs": _listing(INPUT_DIR), "outputs": _listing(OUTPUT_DIR),
+            "insert_files": _listing(INSERT_DIR),
             "jobs": jobs}
 
 
@@ -1573,6 +1643,10 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     _load_jobs()
+    # Made here so the Mở button beside it has somewhere to open: the only
+    # way to fill this folder is by hand, and "chưa có thư mục" is not a
+    # helpful answer to someone trying to put a file in it.
+    INSERT_DIR.mkdir(exist_ok=True)
     # Daemon, so Ctrl+C is not held up by a thread that is asleep for fifteen
     # seconds. It owns no state worth shutting down cleanly.
     threading.Thread(target=_watchdog, daemon=True).start()

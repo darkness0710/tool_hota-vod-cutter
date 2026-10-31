@@ -8,6 +8,8 @@
     python run.py --dry-run                 # analyse only, write segments.csv
     python run.py --parts-only              # render the pieces, do not join
     python run.py --per-game                # one video per game, not one per stream
+    python run.py --per-game --insert-clip insert/like.mp4 --insert-combat
+                                            # splice a clip into each game
     python run.py --only "abc*.mp4"         # files matching a glob (repeatable)
     python run.py --file "exact name.mp4"   # exactly this file (repeatable)
     python run.py -i D:\\vods -o D:\\cut
@@ -82,6 +84,20 @@ def main():
                     help="with --per-game, skip a game shorter than this in "
                          "the source (0 = render every game). The web page "
                          "passes whatever the Cài đặt tab holds")
+    # The clip spliced into each per-game video. Paths rather than names, like
+    # --remove-qr: the page decides which file(s) it means.
+    ap.add_argument("--insert-clip", action="append", default=[],
+                    metavar="PATH",
+                    help="with --per-game, a clip to splice into each video; "
+                         "repeatable, and with several each game gets one "
+                         "of them at random")
+    ap.add_argument("--insert-days", type=int, default=0, metavar="N",
+                    help="insert the clip at N random day changes per game, "
+                         "never the first day or the last")
+    ap.add_argument("--insert-combat", action="store_true",
+                    help="insert the clip before every hero-vs-hero battle")
+    ap.add_argument("--insert-gap", type=int, default=2, metavar="DAYS",
+                    help="in-game days between two inserts (default 2)")
     ap.add_argument("--force", action="store_true",
                     help="re-render even if the output already exists")
     ap.add_argument("--reanalyse", action="store_true",
@@ -198,6 +214,18 @@ def main():
         print(f"no video files in {where}")
         return 1
 
+    insert = None
+    if args.insert_clip and (args.insert_days or args.insert_combat):
+        if args.per_game:
+            insert = {"clips": [os.path.abspath(p) for p in args.insert_clip],
+                      "days": max(0, args.insert_days),
+                      "combat": args.insert_combat,
+                      "gap": max(0, args.insert_gap)}
+        else:
+            # A whole-stream video spans several games, each restarting its
+            # day counter, so "N days apart" has no meaning there.
+            print("--insert-* applies to --per-game only; not inserting\n")
+
     os.makedirs(args.output, exist_ok=True)
     os.makedirs(args.work, exist_ok=True)
     print(f"{len(videos)} file(s) to process   {args.input} -> {args.output}\n")
@@ -228,7 +256,8 @@ def main():
                                keep_parts=args.keep_parts,
                                parts_only=args.parts_only,
                                per_game=args.per_game,
-                               min_game=args.min_game * 60.0)
+                               min_game=args.min_game * 60.0,
+                               insert=insert)
         except Exception as exc:                # keep the batch alive
             print(f"  ERROR {type(exc).__name__}: {exc}")
             rc = 1
