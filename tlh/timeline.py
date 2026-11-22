@@ -23,6 +23,7 @@ from .signal import IDX
 MIN_GAME = 120.0        # a "game" shorter than this is a map re-roll, not a game
 MIN_CHAPTER_GAP = 10.0  # YouTube refuses chapters closer together than this
 VOTE_MIN = 3            # samples a day value needs before it is believed
+RESTART_MIN = 10.0      # seconds a lone "1-1-1" must hold to count as a new game
 
 
 def _runs(values, times):
@@ -100,14 +101,45 @@ def day_runs(sig):
     # Drop anything the game could not actually have shown next. A restart is a
     # legal jump back to day 1, so it is kept and games() splits on it.
     kept = []
-    for value, start, end in merged:
+    for k, (value, start, end) in enumerate(merged):
         previous = kept[-1][0] if kept else None
-        restart = value[2] == 1 and value[1] == 1
-        if previous is None or restart or daycount.plausible(previous, value):
-            kept.append([value, start, end])
+        if previous is None or _restart(merged, k)                 or daycount.plausible(previous, value):
+            if previous == value:
+                # The two halves of one day either side of a refused misread:
+                # one day, not two chapters with the same label.
+                kept[-1][2] = end
+            else:
+                kept.append([value, start, end])
         elif kept:
             kept[-1][2] = end               # absorb the bad reading's time
     return [(tuple(v), s, e) for v, s, e in kept]
+
+
+def _restart(merged, k):
+    """Is merged[k] the first day of a NEW game, rather than a misread?
+
+    Accepting one is the most expensive decision in this file: games() splits
+    there, the half before becomes a "game" of its own -- usually under the
+    minimum length, so not rendered at all -- and every real day read after a
+    false one is then judged against it, fails, and is swallowed into it. That
+    is a per-game video starting mid-game with everything before it gone,
+    which is what was reported from a stream of competitive games.
+
+    So it has to be exactly Month 1, Week 1, Day 1 -- "Week 1, Day 1" of any
+    month was accepted before, though a new month already arrives legally
+    through daycount.plausible() -- and it has to be CONFIRMED: held for
+    RESTART_MIN, or followed directly by a legal next day. Holding for a while
+    alone would not do: a real Day 1 cut short by an unreadable stretch would
+    then be refused, and the whole new game swallowed into the last day of the
+    old one, which is worse than the failure this guards against.
+    """
+    value, start, end = merged[k]
+    if tuple(value) != (1, 1, 1):
+        return False
+    if end - start >= RESTART_MIN:
+        return True
+    following = merged[k + 1][0] if k + 1 < len(merged) else None
+    return following is not None and following != value         and daycount.plausible(value, following)
 
 
 def games(runs, sig):

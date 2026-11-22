@@ -42,6 +42,21 @@ the players re-roll the map and start again at day 1 — and it happens without
 passing through the lobby, so a lobby-based split would miss it. Anything
 shorter than two minutes is a re-roll rather than a game and gets no chapter.
 
+A new game has to be **confirmed**: the counter must read exactly Month 1,
+Week 1, Day 1, and either hold it for 10 seconds or go straight on to a legal
+Day 2. Before this, "Week 1, Day 1" of any month was taken as a restart after
+1.5 seconds. A three-second misread of "1-1-1" in the middle of a game then
+split it in two -- the half before usually under the minimum game length, so
+never rendered -- and every real day read afterwards failed the legality check
+against the false Day 1 and was swallowed into it. Reported from a stream of
+competitive games as per-game videos that started mid-game with everything
+before them gone; reproduced with the old code on a synthetic counter, where
+the misread split a ten-day game at the eighth.
+
+Holding for a while is not required on its own, because a real Day 1 cut short
+by an unreadable stretch would then be refused, and the whole new game swallowed
+into the last day of the old one.
+
 ## Battles
 
 Marked only when they are hero against hero: a battle screen shows a "Spell

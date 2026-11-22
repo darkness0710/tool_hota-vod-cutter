@@ -5,7 +5,7 @@ positively identified:
 
 | removed | how it is recognised | reference VOD |
 |---|---|---|
-| the opponent's adventure-map turn | clock overlay up, their digits ticking regularly, Tieulinh's not | 44:00 |
+| the opponent's adventure-map turn | clock overlay up, their digits ticking regularly, Tieulinh's not, and not inside a hero-vs-hero battle | 44:00 |
 | HotA lobby / menu / reconnect screens | template match against `templates/` | 18:59 |
 | waiting while the opponent fights | both clocks frozen, but the map is still on Tieulinh's screen | 7:38 |
 
@@ -87,6 +87,21 @@ building this, each of which breaks that rule:
     while costing a one-second transition, and a segment count that wobbled
     between 42 and 46 on sub-second sampling noise. `MIN_GAP` enforces the
     minimum on the final gaps.
+
+12. **A competitive timer runs in combat.** HotA's default timer stops for a
+    battle (fact 1), but a competitive-timer game keeps the clocks going, one
+    side per unit's move. While the opponent's stack acts, their clock ticks
+    and Tieulinh's is frozen -- indistinguishable, on the clocks alone, from
+    their map turn. Every enemy move was cut on its own, and a fight came out
+    as one-unit fragments with a fade between each; reported on a stream of
+    competitive games as unwatchable.
+
+    Hero-vs-hero battles are already found for the chapters, by a Spell Points
+    panel on both sides ([chapters.md](chapters.md)), so nothing inside one is
+    cut as an opponent's turn any more. The panels are already in the signal,
+    so a VOD analysed before reuses its cached pass 1. Fights against neutrals are not
+    covered: there it is Tieulinh's own clock that runs, which is kept anyway.
+    The log line `kept: opp moves in PvP` says how much this spared.
 
 ## Transitions
 

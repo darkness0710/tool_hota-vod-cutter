@@ -166,7 +166,8 @@ def process_video(video, out, workdir, workers=4, render_workers=3,
     map_t = screens.map_showing(video, both_frozen, workers, progress=log,
                                 prescale=prescale)
 
-    segs, stats = seg_mod.build(t, widget, mine, theirs, dead_t, map_t, dur)
+    segs, stats = seg_mod.build(t, widget, mine, theirs, dead_t, map_t, dur,
+                                battles=timeline.pvp_battles(sig))
     kept = sum(b - a for a, b in segs)
     log(f"\n  segments {len(segs)}    kept {hms(kept)} ({100*kept/dur:.1f}%)    "
         f"removed {hms(dur - kept)}")

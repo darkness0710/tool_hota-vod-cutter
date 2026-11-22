@@ -857,7 +857,23 @@ _HTML = r"""<!doctype html>
     <dl class="rel">
       <dt class="now"><b>__VERSION__</b> <span class="tag"
         data-t="ver.current">hiện tại</span></dt>
-      <dd class="now" data-th="ver.4.3.d"><ul>
+      <dd class="now" data-th="ver.4.4.d"><ul>
+        <li>Sửa lỗi <b>combat bị cắt vụn ở trận competitive timer</b>. Ở chế
+          độ này đồng hồ vẫn chạy trong combat, nên mỗi lần quân đối thủ đi,
+          tool tưởng là lượt đối thủ trên bản đồ và cắt đi &mdash; trận đánh
+          thành chuỗi mẩu ngắn, chuyển cảnh liên tục. Giờ <b>không cắt gì bên
+          trong trận hero đánh hero</b>. Lượt đối thủ trên bản đồ vẫn cắt như
+          cũ.</li>
+        <li>Sửa lỗi <b>video tách theo game bắt đầu giữa ván, mất hết đoạn
+          trước</b>. Chỉ cần đọc nhầm vài giây ô ngày ra &ldquo;Day 1 Week
+          1&rdquo; là ván bị chẻ đôi, nửa đầu ngắn hơn 30 phút nên bị bỏ. Giờ
+          ván mới phải đọc ra đúng <b>Day 1 Week 1 Month 1</b> và giữ ít nhất
+          10 giây (hoặc ngay sau đó là Day 2).</li>
+        <li>Stream đã chạy rồi thì chạy lại là được, phần phân tích đầu tiên
+          dùng lại cache nên nhanh hơn lần đầu.</li>
+      </ul></dd>
+      <dt><b>4.3</b></dt>
+      <dd data-th="ver.4.3.d"><ul>
         <li>Mới: <b>chèn đoạn nhắc like &amp; sub</b> vào mỗi video tách
           theo game. Bỏ clip của mình vào thư mục <code>insert\</code>, bật
           ở tab <b>Cài đặt</b>.</li>

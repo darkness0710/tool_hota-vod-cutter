@@ -4,7 +4,7 @@ Keep by default. Only three things are cut, and each has to be positively
 identified:
 
 1. the opponent's adventure-map turn -- clock overlay up, their digits ticking,
-   Tieulinh's frozen;
+   Tieulinh's frozen, and NOT inside a hero-vs-hero battle;
 2. a HotA lobby, menu or reconnect screen;
 3. waiting while the opponent fights -- both clocks frozen, but Tieulinh's own
    screen still shows the adventure map.
@@ -67,9 +67,25 @@ def within(segments, start, end):
     return out
 
 
-def build(t, widget, mine, theirs, dead_t, map_t, dur):
-    """Return (segments, stats): the stretches to keep, and what was removed."""
+def build(t, widget, mine, theirs, dead_t, map_t, dur, battles=()):
+    """Return (segments, stats): the stretches to keep, and what was removed.
+
+    `battles` are hero-vs-hero fights as (start, end) seconds, from
+    timeline.pvp_battles(). Nothing inside one is cut as the opponent's turn.
+    """
     cut_opponent = widget & theirs & ~mine
+    # A competitive-timer game keeps the clocks running in combat, one side per
+    # unit's move: the opponent's clock ticks while their stack acts and ours
+    # is frozen -- exactly what an opponent's map turn looks like. Unguarded,
+    # every enemy move in a fight was cut on its own, and a battle came out as
+    # a string of one-unit fragments with a fade between each. The rule was
+    # only ever meant for the map; HotA's default timer stops in combat, which
+    # is why this did not show until a competitive game was cut.
+    in_battle = np.zeros(len(t), bool)
+    for a, b in battles:
+        in_battle |= (t >= a) & (t <= b)
+    spared = cut_opponent & in_battle
+    cut_opponent &= ~in_battle
 
     dead = np.zeros(len(t), bool)
     for ts in dead_t:                           # dead screens come at 1 s steps
@@ -118,5 +134,6 @@ def build(t, widget, mine, theirs, dead_t, map_t, dur):
         "opponent turns": cut_opponent.sum() / C.SR,
         "lobby/menu/reconnect": dead.sum() / C.SR,
         "waiting on opp combat": waiting.sum() / C.SR,
+        "kept: opp moves in PvP": spared.sum() / C.SR,
     }
     return segments, stats

@@ -238,6 +238,11 @@ VI = {
     "tab.ver": "Phiên bản",
     "h2.ver": "Phiên bản",
     "ver.current": "hiện tại",
+    "ver.4.4.d": "<ul>"
+                 "<li>Sửa lỗi <b>combat bị cắt vụn ở trận competitive timer</b>. Ở chế độ này đồng hồ vẫn chạy trong combat, nên mỗi lần quân đối thủ đi, tool tưởng là lượt đối thủ trên bản đồ và cắt đi — trận đánh thành chuỗi mẩu ngắn, chuyển cảnh liên tục. Giờ <b>không cắt gì bên trong trận hero đánh hero</b>. Lượt đối thủ trên bản đồ vẫn cắt như cũ.</li>"
+                 "<li>Sửa lỗi <b>video tách theo game bắt đầu giữa ván, mất hết đoạn trước</b>. Chỉ cần đọc nhầm vài giây ô ngày ra “Day 1 Week 1” là ván bị chẻ đôi, nửa đầu ngắn hơn 30 phút nên bị bỏ. Giờ ván mới phải đọc ra đúng <b>Day 1 Week 1 Month 1</b> và giữ ít nhất 10 giây (hoặc ngay sau đó là Day 2).</li>"
+                 "<li>Stream đã chạy rồi thì chạy lại là được, phần phân tích đầu tiên dùng lại cache nên nhanh hơn lần đầu.</li>"
+                 "</ul>",
     "ver.4.3.d": "<ul>"
                  "<li>Mới: <b>chèn đoạn nhắc like &amp; sub</b> vào mỗi video tách theo game. Bỏ clip của mình vào thư mục <code>insert\\</code>, bật ở tab <b>Cài đặt</b>.</li>"
                  "<li>Chọn chèn <b>trước combat</b> (trước mọi trận hero đánh hero), <b>khi qua ngày</b> (chọn ngẫu nhiên, đặt được số lần mỗi ván), hoặc cả hai. Các lần chèn cách nhau ít nhất số ngày tự đặt, và không bao giờ rơi vào ngày đầu hay ngày cuối của ván.</li>"
@@ -652,6 +657,11 @@ EN = {
     "tab.ver": "Version",
     "h2.ver": "Version",
     "ver.current": "current",
+    "ver.4.4.d": "<ul>"
+                 "<li>Fixed <b>fights chopped to pieces in competitive-timer games</b>. That timer keeps running in combat, so every enemy unit's move looked like the opponent's map turn and was cut — a battle came out as a string of short fragments. <b>Nothing inside a hero-vs-hero battle is cut</b> now; the opponent's map turns still are.</li>"
+                 "<li>Fixed <b>per-game videos starting mid-game with everything before them gone</b>. A few seconds of the day counter misread as “Day 1 Week 1” split the game in two, and the first half, under 30 minutes, was dropped. A new game now has to read exactly <b>Day 1 Week 1 Month 1</b> and hold it for 10 seconds (or go straight on to Day 2).</li>"
+                 "<li>A stream already cut can simply be run again; the first analysis pass is reused from cache, so it is faster than the first time.</li>"
+                 "</ul>",
     "ver.4.3.d": "<ul>"
                  "<li>New: <b>a like &amp; subscribe clip</b> spliced into every per-game video. Put your clip in the <code>insert\\</code> folder and switch it on in the <b>Settings</b> tab.</li>"
                  "<li>Insert it <b>before combat</b> (before every hero-vs-hero battle), <b>at a day change</b> (picked at random, as many per game as you set), or both. Inserts stay at least the number of days you set apart, and never land on a game's first or last day.</li>"
